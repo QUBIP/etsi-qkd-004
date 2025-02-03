@@ -1,0 +1,67 @@
+services:
+  qkd_server:
+    build: ./server
+    container_name: qkd_server
+    environment:
+      - SERVER_CERT_PEM=/certs/server_cert.pem
+      - SERVER_CERT_KEY=/certs/server_key.pem
+      - CLIENT_CERT_PEM=/certs/client_cert.pem
+      - SERVER_ADDRESS=0.0.0.0
+      - SERVER_PORT=25575
+      - QKD_KEY_FILE=/keys/key.bin
+      - QOS_KEY_CHUNK_SIZE=512
+      - QOS_MAX_BPS=500000
+      - QOS_MIN_BPS=5000
+      - QOS_JITTER=5
+      - QOS_PRIORITY=0
+      - QOS_TIMEOUT=5000
+      - QOS_TTL=7200
+    volumes:
+      - ./certs:/certs
+      - ./keys:/keys
+    ports:
+      - "25575:25575"
+    networks:
+      - qkd_network
+
+  qkd_client:
+    build: ./client
+    container_name: qkd_client
+    environment:
+      - CLIENT_CERT_PEM=/certs/client_cert.pem
+      - CLIENT_CERT_KEY=/certs/client_key.pem
+      - SERVER_CERT_PEM=/certs/server_cert.pem
+      - SERVER_ADDRESS=qkd_server
+      - CLIENT_ADDRESS=localhost
+      - SERVER_PORT=25575
+      - KEY_INDEX=1024
+      - METADATA_SIZE=1024
+      - QOS_KEY_CHUNK_SIZE=512
+      - QOS_MAX_BPS=40000
+      - QOS_MIN_BPS=5000
+      - QOS_JITTER=10
+      - QOS_PRIORITY=0
+      - QOS_TIMEOUT=5000
+      - QOS_TTL=3600
+    volumes:
+      - ./certs:/certs
+    networks:
+      - qkd_network
+
+
+  generate_key:
+    build: ./keys
+    container_name: generate_key
+    environment:
+      - QKD_KEY_FILE=/keys/key.bin
+      - KEY_SIZE=1048576
+    volumes:
+      - ./keys:/keys
+    networks:
+      - qkd_network
+
+networks:
+  qkd_network:
+    driver: bridge
+
+
