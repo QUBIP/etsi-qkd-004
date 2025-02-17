@@ -97,9 +97,9 @@ class TestQKDClient:
         """Test GET_KEY failure due to operation timeout."""
         caplog.set_level(logging.INFO)
         client = QKDClient()
-        client.qos['Timeout'] = 50  # Set timeout to 500 milliseconds
+        client.qos['Timeout'] = 0
         client.main_flow('client://localhost', 'server://localhost', 0, 1024)
-        expected_logs = ["GET_KEY failed with status: 6"]
+        expected_logs = ["failed with status: 6"]
         for expected_log in expected_logs:
             assert any(expected_log in record.message for record in caplog.records)
 

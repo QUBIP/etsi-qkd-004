@@ -1,17 +1,31 @@
 import os
-import numpy as np
+import time
+import mmap
+import logging
 
-def generate_random_key(filename, size_bytes):
-    """Generate a random key and save it to a file using numpy."""
-    # Generate random bytes using numpy
-    random_bytes = np.random.bytes(size_bytes)
-    
-    # Write the random bytes to a file
-    with open(filename, 'wb') as f:
-        f.write(random_bytes)
-    print(f"Random key saved to {filename}")
+logging.basicConfig(level=logging.DEBUG, format='[%(levelname)s] %(message)s')
 
-if __name__ == "__main__":
-    key_size = int(os.getenv("KEY_SIZE", 1048576))  # Default to 1MB (1048576 bytes) if KEY_SIZE is not set
-    key_filename = os.getenv("QKD_KEY_FILE", "random_key.bin")  # Default filename if not provided
-    generate_random_key(key_filename, key_size)  # Generate the random key
+BUFFER_SIZE = int(os.getenv("BUFFER_SIZE", "5000"))
+BUFFER_PATH = os.getenv("BUFFER_PATH", "/dev/shm/qkd_buffer")
+SKR = int(os.getenv("SKR", "1000"))
+
+with open(BUFFER_PATH, "wb") as f:
+    f.write(b'\x00' * BUFFER_SIZE)
+
+with open(BUFFER_PATH, "r+b") as f:
+    buffer = mmap.mmap(f.fileno(), BUFFER_SIZE)
+    write_index = 0
+    while True:
+        chunk = os.urandom(SKR)
+        end_index = (write_index + SKR) % BUFFER_SIZE
+        if end_index < write_index:
+            buffer[write_index:] = chunk[:BUFFER_SIZE - write_index]
+            buffer[:end_index] = chunk[BUFFER_SIZE - write_index:]
+        else:
+            buffer[write_index:end_index] = chunk
+
+        write_index = end_index
+        block_start = (write_index - SKR) % BUFFER_SIZE
+        block_end = (block_start + SKR - 1) % BUFFER_SIZE
+        logging.info(f"Generated Key at {block_start}:{block_end}")
+        time.sleep(1)

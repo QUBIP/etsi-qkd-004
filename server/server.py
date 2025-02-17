@@ -8,6 +8,7 @@ import json
 import time
 import os
 import multiprocessing
+import mmap
 from urllib.parse import urlparse
 from multiprocessing import Manager
 
@@ -23,7 +24,8 @@ SERVER_CERT_KEY = os.getenv('SERVER_CERT_KEY', '/certs/server_key.pem')
 CLIENT_CERT_PEM = os.getenv('CLIENT_CERT_PEM', '/certs/client_cert.pem')
 SERVER_ADDRESS = os.getenv('SERVER_ADDRESS', '0.0.0.0')
 SERVER_PORT = int(os.getenv('SERVER_PORT', 25575))
-QKD_KEY_FILE = os.getenv('QKD_KEY_FILE', '/keys/key.bin')
+BUFFER_PATH = os.getenv("BUFFER_PATH", "/dev/shm/qkd_buffer")
+BUFFER_SIZE = int(os.getenv("BUFFER_SIZE", "5000"))
 QOS_KEY_CHUNK_SIZE = int(os.getenv('QOS_KEY_CHUNK_SIZE', 512))
 QOS_MAX_BPS = int(os.getenv('QOS_MAX_BPS', 500000))
 QOS_MIN_BPS = int(os.getenv('QOS_MIN_BPS', 5000))
@@ -279,13 +281,19 @@ class QKDServiceHandler:
 
         # Read key material
         try:
-            time.sleep(0.25)
-            with open(QKD_KEY_FILE, 'rb') as f:
-                key_chunk_size = client_info['qos']['Key_chunk_size']
-                f.seek(index * key_chunk_size)
-                key_material = f.read(key_chunk_size)
-                if len(key_material) < key_chunk_size:
-                    raise ValueError("Insufficient key material.")
+            key_chunk_size = client_info['qos']['Key_chunk_size']
+            start_index = index * key_chunk_size
+            with open(BUFFER_PATH, "r+b") as f:
+                buf = mmap.mmap(f.fileno(), BUFFER_SIZE)
+                end_index = start_index + key_chunk_size
+                if end_index <= BUFFER_SIZE:
+                    key_material = buf[start_index:end_index]
+                else:
+                    key_material = buf[start_index:BUFFER_SIZE]
+            if len(key_material) < key_chunk_size:
+                logging.error(f'Key Length: {len(key_material)}. Chunk Size: {key_chunk_size}. Index: {start_index}')
+                raise ValueError("Insufficient key material.")
+            
         except ValueError as e:
             logging.error(f"Error reading key material: {e}")
             status = STATUS_INSUFFICIENT_KEY

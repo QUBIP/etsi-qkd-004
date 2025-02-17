@@ -8,8 +8,9 @@ services:
       - CLIENT_CERT_PEM=/certs/client_cert.pem
       - SERVER_ADDRESS=0.0.0.0
       - SERVER_PORT=25575
-      - QKD_KEY_FILE=/keys/key.bin
-      - QOS_KEY_CHUNK_SIZE=512
+      - BUFFER_PATH=/dev/shm/qkd_buffer
+      - BUFFER_SIZE=1000000
+      - QOS_KEY_CHUNK_SIZE=1000000
       - QOS_MAX_BPS=500000
       - QOS_MIN_BPS=5000
       - QOS_JITTER=5
@@ -18,7 +19,7 @@ services:
       - QOS_TTL=7200
     volumes:
       - ./certs:/certs
-      - ./keys:/keys
+      - qkd_shared:/dev/shm
     ports:
       - "25575:25575"
     networks:
@@ -34,9 +35,9 @@ services:
       - SERVER_ADDRESS=qkd_server
       - CLIENT_ADDRESS=localhost
       - SERVER_PORT=25575
-      - KEY_INDEX=1024
+      - KEY_INDEX=0
       - METADATA_SIZE=1024
-      - QOS_KEY_CHUNK_SIZE=512
+      - QOS_KEY_CHUNK_SIZE=32
       - QOS_MAX_BPS=40000
       - QOS_MIN_BPS=5000
       - QOS_JITTER=10
@@ -53,10 +54,11 @@ services:
     build: ./keys
     container_name: generate_key
     environment:
-      - QKD_KEY_FILE=/keys/key.bin
-      - KEY_SIZE=1048576
+      - BUFFER_SIZE=1000000
+      - BUFFER_PATH=/dev/shm/qkd_buffer
+      - SKR=12500
     volumes:
-      - ./keys:/keys
+      - qkd_shared:/dev/shm
     networks:
       - qkd_network
 
@@ -64,4 +66,8 @@ networks:
   qkd_network:
     driver: bridge
 
-
+volumes:
+  qkd_shared:
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
