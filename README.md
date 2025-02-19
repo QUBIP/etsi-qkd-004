@@ -1,6 +1,6 @@
 # QKD Application Interface
 
-This is a dockerized Python implementation of a server/client example of the [ETSI GS QKD 004 API Standard](https://www.etsi.org/deliver/etsi_gs/QKD/001_099/004/02.01.01_60/gs_qkd004v020101p.pdf).
+This is a Dockerized Python implementation of a server/client example of the [ETSI GS QKD 004 API Standard](https://www.etsi.org/deliver/etsi_gs/QKD/001_099/004/02.01.01_60/gs_qkd004v020101p.pdf), based on the [C implementation](https://forge.etsi.org/rep/qkd/gs004-app-int) from ETSI. It includes an emulation of a QKD link that distills synchronized keys at a fixed Secret Key Rate.
 
 ## Table of Contents
 
@@ -20,6 +20,7 @@ This is a dockerized Python implementation of a server/client example of the [ET
 ## Prerequisites
 
 - [Docker](https://docs.docker.com/get-started/get-docker/)
+- [OpenSSL](https://www.openssl.org/)
 
 ## Setup
 
@@ -32,6 +33,10 @@ sudo chmod +x ./certs/generate_certs.sh
 ./certs/generate_certs.sh qkd_server_alice
 ./certs/generate_certs.sh qkd_server_bob
 ```
+
+## Configuration
+
+This application uses environment variables located at `docker-compose.yml` file for configuration. All variables are described inside the file.
 
 ## Running the Application
 
@@ -131,3 +136,23 @@ tests.py .........                                        [100%]
 ```
 
 All tests have passed successfully, indicating that the client interacts with the server as expected under various scenarios, handling exceptions as required by the API standard.
+
+## Contributing
+
+Contributions are welcome. Please submit an issue or pull request if you'd like to contribute.
+
+## Support
+
+If you have any questions, please open an issue on this repository.
+
+## License
+
+This project is based on the [ETSI C implementation](https://forge.etsi.org/rep/qkd/gs004-app-int) and follows the same licensing terms.  
+
+The source code is licensed under the **BSD 3-Clause License**. See the [LICENSE](LICENSE) file for details.
+
+## Acknowledgements
+
+This work has been developed within the QUBIP project (https://www.qubip.eu),
+funded by the European Union under the Horizon Europe framework programme
+[grant agreement no. 101119746](https://doi.org/10.3030/101119746).
