@@ -1,0 +1,189 @@
+services:
+  qkd_server_alice:
+    build: ./server
+    container_name: qkd_server_alice
+    environment:
+      - SERVER_CERT_PEM=/certs/server_cert_qkd_server_alice.pem  # Server public key
+      - SERVER_CERT_KEY=/certs/server_key_qkd_server_alice.pem  # Server private key
+      - CLIENT_CERT_PEM=/certs/client_cert_qkd_server_alice.pem  # Client public key
+      - SERVER_ADDRESS=0.0.0.0  # Server bind address
+      - SERVER_PORT=25575  # Server port
+      - BUFFER_PATH=/dev/shm/qkd_buffer  # Key buffer memory path 
+      - BUFFER_SIZE=1000000  # Key buffer size
+      - QOS_KEY_CHUNK_SIZE=1000000  # Key chunk size in bytes
+      - QOS_MAX_BPS=500000  # Max Secret Key Rate in bits per second allowed by server
+      - QOS_MIN_BPS=5000  # Min Secret Key Rate in bits per second allowed by server
+      - QOS_JITTER=5  # Max Secret Key Rate deviation in bits per second allowed by server
+      - QOS_PRIORITY=0  # Priority of the request
+      - QOS_TIMEOUT=5000  # Timeot in miliseconds to abort a call
+      - QOS_TTL=7200  # Max time in seconds to store the keys in the buffer memory
+    volumes:
+      - ./certs:/certs
+      - qkd_shared_alice:/dev/shm
+    ports:
+      - "25575:25575"
+    networks:
+      - qkd_network
+
+  qkd_server_bob:
+    build: ./server
+    container_name: qkd_server_bob
+    environment:
+      - SERVER_CERT_PEM=/certs/server_cert_qkd_server_bob.pem  # Server public key
+      - SERVER_CERT_KEY=/certs/server_key_qkd_server_bob.pem  # Server private key
+      - CLIENT_CERT_PEM=/certs/client_cert_qkd_server_bob.pem  # Client public key
+      - SERVER_ADDRESS=0.0.0.0  # Server bind address
+      - SERVER_PORT=25576  # Server port
+      - BUFFER_PATH=/dev/shm/qkd_buffer  # Key buffer memory path
+      - BUFFER_SIZE=1000000  # Key buffer size
+      - QOS_KEY_CHUNK_SIZE=1000000  # Key chunk size in bytes
+      - QOS_MAX_BPS=500000  # Max Secret Key Rate in bits per second allowed by server
+      - QOS_MIN_BPS=5000  # Min Secret Key Rate in bits per second allowed by server
+      - QOS_JITTER=5  # Max Secret Key Rate deviation in bits per second allowed by server
+      - QOS_PRIORITY=0  # Priority of the request
+      - QOS_TIMEOUT=5000  # Timeot in miliseconds to abort a call
+      - QOS_TTL=7200  # Max time in seconds to store the keys in the buffer memory
+    volumes:
+      - ./certs:/certs
+      - qkd_shared_bob:/dev/shm
+    ports:
+      - "25576:25576"
+    networks:
+      - qkd_network
+
+  qkd_client_alice:
+    build: ./client
+    container_name: qkd_client_alice
+    environment:
+      - CLIENT_CERT_PEM=/certs/client_cert_qkd_server_alice.pem  # Server public key
+      - CLIENT_CERT_KEY=/certs/client_key_qkd_server_alice.pem  # Server private key
+      - SERVER_CERT_PEM=/certs/server_cert_qkd_server_alice.pem  # Client public key
+      - SERVER_ADDRESS=qkd_server_alice  # Remote server address
+      - CLIENT_ADDRESS=localhost  # Client local address
+      - SERVER_PORT=25575  # Server port
+      - KEY_INDEX=0  # Requested key index
+      - METADATA_SIZE=1024  # Metadata size in bytes
+      - QOS_KEY_CHUNK_SIZE=32  # Requested key chunk size
+      - QOS_MAX_BPS=40000  # Max secret key rate in bits per second requested by client
+      - QOS_MIN_BPS=5000  # Min secret key rate in bits per second requested by client
+      - QOS_JITTER=10  # Max secret key rate deviation in bits per second requested by client
+      - QOS_PRIORITY=0  # Priority of the request
+      - QOS_TIMEOUT=5000  # Timeot in miliseconds to abort a call
+      - QOS_TTL=3600  # Max time in seconds to store the keys in the buffer memory
+    volumes:
+      - ./certs:/certs
+    networks:
+      - qkd_network
+
+  qkd_client_bob:
+    build: ./client
+    container_name: qkd_client_bob
+    environment:
+      - CLIENT_CERT_PEM=/certs/client_cert_qkd_server_bob.pem  # Server public key
+      - CLIENT_CERT_KEY=/certs/client_key_qkd_server_bob.pem  # Server private key
+      - SERVER_CERT_PEM=/certs/server_cert_qkd_server_bob.pem  # Client public key
+      - SERVER_ADDRESS=qkd_server_bob  # Remote server address
+      - CLIENT_ADDRESS=localhost  # Client local address
+      - SERVER_PORT=25576  # Server port
+      - KEY_INDEX=0  # Requested key index
+      - METADATA_SIZE=1024  # Metadata size in bytes
+      - QOS_KEY_CHUNK_SIZE=32  # Requested key chunk size
+      - QOS_MAX_BPS=40000  # Max secret key rate in bits per second requested by client
+      - QOS_MIN_BPS=5000  # Min secret key rate in bits per second requested by client
+      - QOS_JITTER=10  # Max secret key rate deviation in bits per second requested by client
+      - QOS_PRIORITY=0  # Priority of the request
+      - QOS_TIMEOUT=5000  # Timeot in miliseconds to abort a call
+      - QOS_TTL=3600  # Max time in seconds to store the keys in the buffer memory
+    volumes:
+      - ./certs:/certs
+    networks:
+      - qkd_network
+
+  generate_key_alice:
+    build: ./keys
+    container_name: generate_key_alice
+    environment:
+      - BUFFER_SIZE=1000000  # Key buffer size
+      - BUFFER_PATH=/dev/shm/qkd_buffer  # Key buffer memory path
+      - MODE=sender  # Sender or receiver mode (Alice or Bob)
+      - HOST=generate_key_bob  # Receiver host address
+      - PORT=5000  # Receiver host port
+      - SKR=12500  # Secret Key Rate (in bytes per second)
+    volumes:
+      - qkd_shared_alice:/dev/shm
+    networks:
+      - qkd_network
+
+  generate_key_bob:
+    build: ./keys
+    container_name: generate_key_bob
+    environment:
+      - BUFFER_SIZE=1000000  # Key buffer size
+      - BUFFER_PATH=/dev/shm/qkd_buffer  # Key buffer memory path
+      - MODE=receiver  # Sender or receiver mode (Alice or Bob)
+      - PORT=5000  # Receiver host port
+      - SKR=12500  # Secret Key Rate (in bytes per second)
+    volumes:
+      - qkd_shared_bob:/dev/shm
+    networks:
+      - qkd_network
+    ports:
+      - "5000:5000"
+
+  qkd_tests_alice:
+    build:
+      context: .
+      dockerfile: ./tests/Dockerfile
+    container_name: qkd_tests_alice
+    depends_on:
+      - qkd_server_alice
+      - qkd_server_bob
+      - generate_key_alice
+      - generate_key_bob
+    environment:
+      - CLIENT_CERT_PEM=/certs/client_cert_qkd_server_alice.pem  # Server public key
+      - CLIENT_CERT_KEY=/certs/client_key_qkd_server_alice.pem  # Server private key
+      - SERVER_CERT_PEM=/certs/server_cert_qkd_server_alice.pem  # Client public key
+      - SERVER_ADDRESS=qkd_server_alice  # Remote server address
+      - CLIENT_ADDRESS=localhost  # Client local address
+      - SERVER_PORT=25575  # Server port
+    volumes:
+      - ./certs:/certs
+    networks:
+      - qkd_network
+
+  qkd_tests_bob:
+    build:
+      context: .
+      dockerfile: ./tests/Dockerfile
+    container_name: qkd_tests_bob
+    depends_on:
+      - qkd_server_alice
+      - qkd_server_bob
+      - generate_key_alice
+      - generate_key_bob
+    environment:
+      - CLIENT_CERT_PEM=/certs/client_cert_qkd_server_bob.pem  # Server public key
+      - CLIENT_CERT_KEY=/certs/client_key_qkd_server_bob.pem  # Server private key
+      - SERVER_CERT_PEM=/certs/server_cert_qkd_server_bob.pem  # Client public key
+      - SERVER_ADDRESS=qkd_server_bob  # Remote server address
+      - CLIENT_ADDRESS=localhost  # Client local address
+      - SERVER_PORT=25576  # Server port
+    volumes:
+      - ./certs:/certs
+    networks:
+      - qkd_network
+
+networks:
+  qkd_network:
+    driver: bridge
+
+volumes:
+  qkd_shared_alice:
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+  qkd_shared_bob:
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
