@@ -12,9 +12,9 @@ logging.basicConfig(level=logging.DEBUG, format='[%(levelname)s] %(message)s')
 VERSION = '1.0.1'
 
 # Client Settings (from environment variables)
-CLIENT_CERT_PEM = os.getenv('CLIENT_CERT_PEM', '/certs/client_cert.pem')
-CLIENT_CERT_KEY = os.getenv('CLIENT_CERT_KEY', '/certs/client_key.pem')
-SERVER_CERT_PEM = os.getenv('SERVER_CERT_PEM', '/certs/server_cert.pem')
+CLIENT_CERT_PEM = os.getenv('CLIENT_CERT_PEM')
+CLIENT_CERT_KEY = os.getenv('CLIENT_CERT_KEY')
+SERVER_CERT_PEM = os.getenv('SERVER_CERT_PEM')
 SERVER_ADDRESS = os.getenv('SERVER_ADDRESS', 'qkd_server')
 CLIENT_ADDRESS = os.getenv('CLIENT_ADDRESS', 'localhost')
 SERVER_PORT = int(os.getenv('SERVER_PORT', 25575))
@@ -75,12 +75,15 @@ class QKDClient:
 
     def connect(self, server_ip, server_port):
         """Establish a secure connection to the server."""
-        context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
-        context.load_cert_chain(certfile=CLIENT_CERT_PEM, keyfile=CLIENT_CERT_KEY)
-        context.load_verify_locations(cafile=SERVER_CERT_PEM)
         raw_sock = socket.socket(socket.AF_INET)
         raw_sock.settimeout(5)
-        self.sock = context.wrap_socket(raw_sock, server_hostname=server_ip)
+        if SERVER_CERT_PEM and CLIENT_CERT_KEY and CLIENT_CERT_PEM:
+            context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
+            context.load_cert_chain(certfile=CLIENT_CERT_PEM, keyfile=CLIENT_CERT_KEY)
+            context.load_verify_locations(cafile=SERVER_CERT_PEM)
+            self.sock = context.wrap_socket(raw_sock, server_hostname=server_ip)
+        else:
+            self.sock = raw_sock
 
         try:
             self.sock.connect((server_ip, server_port))

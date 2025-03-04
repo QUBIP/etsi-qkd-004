@@ -19,9 +19,9 @@ logging.basicConfig(level=logging.DEBUG, format='[%(levelname)s] %(message)s')
 VERSION = '1.0.1'
 
 # Server Settings (from environment variables)
-SERVER_CERT_PEM = os.getenv('SERVER_CERT_PEM', '/certs/server_cert.pem')
-SERVER_CERT_KEY = os.getenv('SERVER_CERT_KEY', '/certs/server_key.pem')
-CLIENT_CERT_PEM = os.getenv('CLIENT_CERT_PEM', '/certs/client_cert.pem')
+SERVER_CERT_PEM = os.getenv('SERVER_CERT_PEM')
+SERVER_CERT_KEY = os.getenv('SERVER_CERT_KEY')
+CLIENT_CERT_PEM = os.getenv('CLIENT_CERT_PEM')
 SERVER_ADDRESS = os.getenv('SERVER_ADDRESS', '0.0.0.0')
 SERVER_PORT = int(os.getenv('SERVER_PORT', 25575))
 BUFFER_PATH = os.getenv("BUFFER_PATH", "/dev/shm/qkd_buffer")
@@ -156,7 +156,7 @@ class QKDServiceHandler:
             # Extract necessary information from conn
             conn_info = {
                 "peername": conn.getpeername(),  # Example: IP and port of the client
-                "cipher": conn.cipher()  # SSL/TLS cipher details
+                "cipher": conn.cipher() if hasattr(conn, "cipher") else None  # SSL/TLS cipher details or None if not SSL
             }
         else:
             conn_info = None
@@ -511,10 +511,13 @@ class QKDServiceHandler:
 
 def main():
     """Main function to run the QKD server."""
-    context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-    context.load_cert_chain(certfile=SERVER_CERT_PEM, keyfile=SERVER_CERT_KEY)
-    context.load_verify_locations(cafile=CLIENT_CERT_PEM)
-    context.verify_mode = ssl.CERT_REQUIRED  # Require client certificate
+    if SERVER_CERT_PEM and SERVER_CERT_KEY and CLIENT_CERT_PEM:
+        context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        context.load_cert_chain(certfile=SERVER_CERT_PEM, keyfile=SERVER_CERT_KEY)
+        context.load_verify_locations(cafile=CLIENT_CERT_PEM)
+        context.verify_mode = ssl.CERT_REQUIRED  # Require client certificate
+    else:
+        context = None
 
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.bind((SERVER_ADDRESS, SERVER_PORT))
@@ -527,8 +530,9 @@ def main():
     try:
         while True:
             conn, addr = server_socket.accept()
-            ssl_conn = context.wrap_socket(conn, server_side=True)
-            threading.Thread(target=handler.handle_client, args=(ssl_conn, addr)).start()
+            if context:
+                conn = context.wrap_socket(conn, server_side=True)
+            threading.Thread(target=handler.handle_client, args=(conn, addr)).start()
     except KeyboardInterrupt:
         logging.info("Server shutting down.")
     finally:
