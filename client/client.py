@@ -119,12 +119,12 @@ class QKDClient:
         return data
 
     def open_connect(self, source_uri, dest_uri):
+        """ ETSI 004: CLOSE (in Key_stream_ID, out status);"""
         """Send an OPEN_CONNECT_REQUEST to the server."""
         # Construct payload
         payload = source_uri.encode() + b'\x00'
         payload += dest_uri.encode() + b'\x00'
         payload += self.construct_qos(self.qos)
-        # Key_stream_ID set to all zeros (16 bytes)
         payload += self.key_stream_id.bytes
 
         # Logging statements
@@ -147,12 +147,17 @@ class QKDClient:
         status, key_stream_id = self.parse_open_connect_response(response)
         if status == STATUS_SUCCESS or status == STATUS_QOS_NOT_MET:
             self.key_stream_id = key_stream_id
+            # QoS has been updated in parse_open_connect_response
             logging.info(f"OPEN_CONNECT status: {status}, Key_stream_ID: {self.key_stream_id}")
+            logging.debug(f"Adjusted QoS: {self.qos}")
         else:
             logging.error(f"OPEN_CONNECT failed with status: {status}")
             raise KnownException(f"OPEN_CONNECT failed with status: {status}")
+        
+        return status, key_stream_id, self.qos
 
     def get_key(self, index, metadata_size):
+        """ ETSI 004: GET_KEY (in Key_stream_ID, inout index, out Key_buffer, inout Metadata, out status);"""
         """Send a GET_KEY_REQUEST to the server and receive key material."""
         # Construct payload
         payload = self.key_stream_id.bytes
@@ -172,15 +177,17 @@ class QKDClient:
             raise KnownException(f"GET_KEY failed with status: {STATUS_PEER_NOT_CONNECTED}") from e
 
         # Parse response
-        status, key_material, metadata = self.parse_get_key_response(response)
+        status, new_index, key_material, metadata = self.parse_get_key_response(response)
 
         if status == STATUS_SUCCESS:
             logging.info(f"GET_KEY status: {status}, Key_stream_ID: {self.key_stream_id}, Key length: {len(key_material)}, Metadata: {metadata}")
+            return new_index, key_material, metadata, status
         else:
             logging.error(f"GET_KEY failed with status: {status}")
             raise KnownException(f"GET_KEY failed with status: {status}")
 
     def close(self):
+        """ ETSI 004: CLOSE (in Key_stream_ID, out status);"""
         """Send a CLOSE_REQUEST to the server to close the connection."""
         # Construct payload
         payload = self.key_stream_id.bytes
@@ -204,6 +211,8 @@ class QKDClient:
         else:
             logging.error(f"CLOSE failed with status: {status}")
             raise KnownException(f"CLOSE failed with status: {status}")
+            
+        return status
 
     def construct_request(self, service_type, payload):
         """Construct a request packet to send to the server."""
@@ -306,12 +315,10 @@ class QKDClient:
 
             # Logging for metadata
             logging.debug(f"Metadata received by client: {metadata}")
+            return status, index, key_material, metadata
 
-        else:
-            key_material = b''
-            metadata = ''
+        return status, None, b'', ''
 
-        return status, key_material, metadata
 
     def parse_close_response(self, response):
         """Parse the CLOSE_RESPONSE from the server."""
@@ -342,13 +349,17 @@ class QKDClient:
 
     def main_flow(self, source_uri, dest_uri, index, metadata_size, server_ip=SERVER_ADDRESS, server_port=SERVER_PORT):
         """Execute the main client flow: connect, open_connect, get_key, close."""
+        key_material = None
+        metadata = None
         try:
             self.connect(server_ip, server_port)
-            self.open_connect(source_uri, dest_uri)
-            self.get_key(index, metadata_size=metadata_size)
-            self.close()
+            status, key_stream_id, qos = self.open_connect(source_uri, dest_uri)
+            if status == STATUS_SUCCESS or status == STATUS_QOS_NOT_MET:
+                new_index, key_material, metadata, status = self.get_key(index, metadata_size=metadata_size)
+                close_status = self.close()
+            return key_material, metadata
         except KnownException:
-            pass
+            return None, None
         finally:
             if hasattr(self, 'sock') and self.sock:
                 self.sock.close()
