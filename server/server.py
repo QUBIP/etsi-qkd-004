@@ -11,6 +11,7 @@ import multiprocessing
 import mmap
 from urllib.parse import urlparse
 from multiprocessing import Manager
+from key_manager.key_manager import KSIDManager
 
 # Logging configuration
 logging.basicConfig(level=logging.DEBUG, format='[%(levelname)s] %(message)s')
@@ -52,6 +53,7 @@ STATUS_KSID_IN_USE = 5
 STATUS_TIMEOUT = 6
 STATUS_QOS_NOT_MET = 7
 STATUS_METADATA_SIZE_INSUFFICIENT = 8
+STATUS_PEER_NOT_CONNECTED_CLOSE = 9
 
 # QoS Parameter Sizes
 QOS_FIELD_COUNT = 7
@@ -65,10 +67,28 @@ KEY_CHUNK_SIZE = 256  # Example value in bytes
 class QKDServiceHandler:
     def __init__(self):
         """Initialize the QKDServiceHandler with shared resources."""
-        manager = Manager()
-        self.connected_clients = manager.dict()
-        self.key_store = {}  # Stores key material per Key_stream_ID
-        self.lock = threading.Lock()  # Lock for thread safety
+        # Create a Manager for sharing data between processes
+        self.mp_manager = Manager()
+        
+        # Connected clients dictionary shared between processes
+        self.connected_clients = self.mp_manager.dict()
+        self.lock = threading.Lock()
+        
+        # Create a shared dictionary for the KSID manager
+        self.shared_ksid_dict = self.mp_manager.dict()
+        # Initialize the KSID manager with the shared dictionary
+        self.ksid_manager = KSIDManager(shared_state=self.shared_ksid_dict)
+        
+        # Ensure buffer file exists with random data for keys
+        if not os.path.exists(BUFFER_PATH):
+            with open(BUFFER_PATH, "wb") as f:
+                # Fill with random data instead of zeros for better key material
+                f.write(os.urandom(BUFFER_SIZE))
+                logging.info(f"Created buffer file with {BUFFER_SIZE} bytes of random data")
+        else:
+            logging.info(f"Using existing buffer file at {BUFFER_PATH}")
+        
+    logging.info("QKDServiceHandler initialized with KSID-based key management")
 
     def handle_client(self, conn, addr):
         """Handle communication with a connected client."""
@@ -229,17 +249,50 @@ class QKDServiceHandler:
         else:
             status = STATUS_SUCCESS
 
-        # Handle Key_stream_ID
-        key_stream_id = uuid.UUID(bytes=key_stream_id_bytes)
-        if key_stream_id == uuid.UUID(int=0):
-            key_stream_id = uuid.uuid4()
-        else:
+        # Handle Key_stream_ID using the KSID manager
+        requested_ksid = uuid.UUID(bytes=key_stream_id_bytes)
+            
+        # Check if KSID is already in use with different URIs
+        if requested_ksid != uuid.UUID(int=0):
             with self.lock:
-                if key_stream_id in self.connected_clients:
-                    logging.error("Key_stream_ID is already in use.")
-                    status = STATUS_KSID_IN_USE
-                    response_payload = struct.pack('!I', status)
-                    return self.construct_response(QKD_SERVICE_OPEN_CONNECT_RESPONSE, response_payload)
+                for existing_ksid, client_data in self.connected_clients.items():
+                    if str(existing_ksid) == str(requested_ksid) and (
+                        client_data['source'] != source_uri or 
+                        client_data['destination'] != dest_uri
+                    ):
+                        logging.error(f"KSID {requested_ksid} already in use with different URIs")
+                        status = STATUS_KSID_IN_USE
+                        response_payload = struct.pack('!I', status)
+                        return self.construct_response(QKD_SERVICE_OPEN_CONNECT_RESPONSE, response_payload)
+            
+            # Add this check for KSID manager state
+            ksid_info = self.ksid_manager.get_ksid_info(requested_ksid)
+            if ksid_info and (ksid_info["source_uri"] != source_uri or ksid_info["dest_uri"] != dest_uri):
+                logging.error(f"KSID {requested_ksid} exists in manager with different URIs")
+                status = STATUS_KSID_IN_USE
+                response_payload = struct.pack('!I', status)
+                return self.construct_response(QKD_SERVICE_OPEN_CONNECT_RESPONSE, response_payload)
+            
+        # Using null KSID (all zeros) means request for a new KSID
+        if requested_ksid == uuid.UUID(int=0):
+            requested_ksid = None
+            
+        # Call KSID manager to allocate KSID
+        allocated_ksid, initial_index, alloc_status = self.ksid_manager.allocate_ksid(
+            requested_ksid=requested_ksid,
+            source_uri=source_uri,
+            dest_uri=dest_uri,
+            ttl=adjusted_qos['TTL']
+        )
+        
+        if alloc_status != 0:
+            logging.error(f"Failed to allocate KSID, status: {alloc_status}")
+            status = STATUS_KSID_IN_USE
+            response_payload = struct.pack('!I', status)
+            return self.construct_response(QKD_SERVICE_OPEN_CONNECT_RESPONSE, response_payload)
+        
+        key_stream_id = allocated_ksid
+        # No need to convert to UUID again, it should already be a UUID object
 
         # Store connection information
         with self.lock:
@@ -248,7 +301,7 @@ class QKDServiceHandler:
                 'source': source_uri,
                 'destination': dest_uri,
                 'qos': adjusted_qos,
-                'key_index': 0
+                'key_index': initial_index
             }
 
         # Prepare response
@@ -261,15 +314,11 @@ class QKDServiceHandler:
         return self.construct_response(QKD_SERVICE_OPEN_CONNECT_RESPONSE, response_payload)
 
     def handle_get_key_request(self, payload):
-        """Handle the GET_KEY_REQUEST service type from the client."""
-        # Parse Key_stream_ID, index, and metadata_size
+        # Parse Key_stream_ID
         key_stream_id_bytes = payload[:16]
-        index = struct.unpack('!I', payload[16:20])[0]
-        metadata_size = struct.unpack('!I', payload[20:24])[0]
-
         key_stream_id = uuid.UUID(bytes=key_stream_id_bytes)
 
-        # Check if Key_stream_ID exists
+        # Check if Key_stream_ID exists FIRST
         with self.lock:
             client_info = self.connected_clients.get(key_stream_id)
 
@@ -279,20 +328,52 @@ class QKDServiceHandler:
             response_payload = struct.pack('!I', status)
             return self.construct_response(QKD_SERVICE_GET_KEY_RESPONSE, response_payload)
 
-        # Read key material
+        # Now we have client_info, so we can safely get the key_chunk_size
+        key_chunk_size = client_info['qos']['Key_chunk_size']
+        
+        # Parse index and metadata_size
+        index = struct.unpack('!I', payload[16:20])[0]
+        metadata_size = struct.unpack('!I', payload[20:24])[0]
+
+        # Check for sufficient key material
+        if index >= BUFFER_SIZE // key_chunk_size:
+            logging.error(f"Insufficient key material for index {index}")
+            status = STATUS_INSUFFICIENT_KEY
+            response_payload = struct.pack('!I', status)
+            return self.construct_response(QKD_SERVICE_GET_KEY_RESPONSE, response_payload)
+
+        # Get KSID info from manager
+        ksid_info = self.ksid_manager.get_ksid_info(key_stream_id)
+        if not ksid_info:
+            logging.error("KSID not found in manager.")
+            status = STATUS_PEER_NOT_CONNECTED_GET_KEY
+            response_payload = struct.pack('!I', status)
+            return self.construct_response(QKD_SERVICE_GET_KEY_RESPONSE, response_payload)
+
         try:
-            key_chunk_size = client_info['qos']['Key_chunk_size']
-            start_index = index * key_chunk_size
+            # Open buffer for reading
             with open(BUFFER_PATH, "r+b") as f:
                 buf = mmap.mmap(f.fileno(), BUFFER_SIZE)
+                start_index = index * key_chunk_size
                 end_index = start_index + key_chunk_size
+                
                 if end_index <= BUFFER_SIZE:
                     key_material = buf[start_index:end_index]
                 else:
+                    # Wrap around buffer if needed
                     key_material = buf[start_index:BUFFER_SIZE]
+                    remaining = end_index - BUFFER_SIZE
+                    if remaining > 0:
+                        key_material += buf[0:remaining]
+                
+                buf.close()
+                
             if len(key_material) < key_chunk_size:
                 logging.error(f'Key Length: {len(key_material)}. Chunk Size: {key_chunk_size}. Index: {start_index}')
                 raise ValueError("Insufficient key material.")
+            
+            # Update the index in KSID manager
+            self.ksid_manager.update_index(key_stream_id, index + 1)
             
         except ValueError as e:
             logging.error(f"Error reading key material: {e}")
@@ -336,13 +417,22 @@ class QKDServiceHandler:
         key_stream_id_bytes = payload[:16]
         key_stream_id = uuid.UUID(bytes=key_stream_id_bytes)
 
+        # Check if Key_stream_ID exists in connected clients
         with self.lock:
             if key_stream_id in self.connected_clients:
                 del self.connected_clients[key_stream_id]
-                status = STATUS_SUCCESS
-                logging.info(f"CLOSE successful for Key_stream_ID: {key_stream_id}")
+                
+                # Close KSID in manager
+                close_status = self.ksid_manager.close_ksid(key_stream_id)
+                
+                if close_status == 0:
+                    status = STATUS_SUCCESS
+                    logging.info(f"CLOSE successful for Key_stream_ID: {key_stream_id}")
+                else:
+                    status = STATUS_PEER_NOT_CONNECTED_GET_KEY
+                    logging.error(f"Error closing KSID: {key_stream_id}")
             else:
-                status = STATUS_PEER_NOT_CONNECTED_GET_KEY
+                status = STATUS_PEER_NOT_CONNECTED_GET_KEY 
                 logging.error("Key_stream_ID not connected.")
 
         response_payload = struct.pack('!I', status)

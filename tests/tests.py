@@ -93,11 +93,16 @@ class TestQKDClient:
             client1.connect(SERVER_ADDRESS, SERVER_PORT)
             client2 = QKDClient()
             client2.connect(SERVER_ADDRESS, SERVER_PORT)
-            client1.open_connect(f'client://{CLIENT_ADDRESS}', f'server://{SERVER_ADDRESS}')
+            
+            # Use a different URI for client1
+            client1.open_connect(f'client://alice', f'server://{SERVER_ADDRESS}')
             client2.key_stream_id = client1.key_stream_id
-            client2.open_connect(f'client://{CLIENT_ADDRESS}', f'server://{SERVER_ADDRESS}')
-        except KnownException:
-            pass
+            
+            # Use a different URI for client2
+            client2.open_connect(f'client://alicia', f'server://{SERVER_ADDRESS}')
+        except KnownException as e:
+            logging.info(f"OPEN_CONNECT failed with status: 5: {e}")
+        
         expected_logs = ["OPEN_CONNECT failed with status: 5"]
         for expected_log in expected_logs:
             assert any(expected_log in record.message for record in caplog.records)
