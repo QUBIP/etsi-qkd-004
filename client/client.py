@@ -51,7 +51,6 @@ STATUS_KSID_IN_USE = 5
 STATUS_TIMEOUT = 6
 STATUS_QOS_NOT_MET = 7
 STATUS_METADATA_SIZE_INSUFFICIENT = 8
-STATUS_PEER_NOT_CONNECTED_CLOSE = 9
 
 class KnownException(Exception):
     """Custom exception class for known errors."""
@@ -77,7 +76,7 @@ class QKDClient:
     def connect(self, server_ip, server_port):
         """Establish a secure connection to the server."""
         raw_sock = socket.socket(socket.AF_INET)
-        raw_sock.settimeout(10)
+        raw_sock.settimeout(5)
         if SERVER_CERT_PEM and CLIENT_CERT_KEY and CLIENT_CERT_PEM:
             context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
             context.load_cert_chain(certfile=CLIENT_CERT_PEM, keyfile=CLIENT_CERT_KEY)
@@ -120,8 +119,7 @@ class QKDClient:
         return data
 
     def open_connect(self, source_uri, dest_uri):
-        """ ETSI 004: CLOSE (in Key_stream_ID, out status);"""
-        """Send an OPEN_CONNECT_REQUEST to the server."""
+        """Execute ETSI 004 OPEN_CONNECT operation (modifies QoS/Key_stream_ID, returns status)."""
         # Construct payload
         payload = source_uri.encode() + b'\x00'
         payload += dest_uri.encode() + b'\x00'
@@ -154,12 +152,11 @@ class QKDClient:
         else:
             logging.error(f"OPEN_CONNECT failed with status: {status}")
             raise KnownException(f"OPEN_CONNECT failed with status: {status}")
-        
+
         return status, key_stream_id, self.qos
 
     def get_key(self, index, metadata_size):
-        """ ETSI 004: GET_KEY (in Key_stream_ID, inout index, out Key_buffer, inout Metadata, out status);"""
-        """Send a GET_KEY_REQUEST to the server and receive key material."""
+        """Execute GET_KEY operation returning new_index, key_buffer, metadata, and status."""
         # Construct payload
         payload = self.key_stream_id.bytes
         payload += struct.pack('!I', index)
@@ -188,8 +185,7 @@ class QKDClient:
             raise KnownException(f"GET_KEY failed with status: {status}")
 
     def close(self):
-        """ ETSI 004: CLOSE (in Key_stream_ID, out status);"""
-        """Send a CLOSE_REQUEST to the server to close the connection."""
+        """Close key stream identified by Key_stream_ID and return status code."""
         # Construct payload
         payload = self.key_stream_id.bytes
 
@@ -212,7 +208,7 @@ class QKDClient:
         else:
             logging.error(f"CLOSE failed with status: {status}")
             raise KnownException(f"CLOSE failed with status: {status}")
-            
+
         return status
 
     def construct_request(self, service_type, payload):
@@ -323,7 +319,6 @@ class QKDClient:
             return status, index, key_material, metadata
 
         return status, None, b'', ''
-
 
     def parse_close_response(self, response):
         """Parse the CLOSE_RESPONSE from the server."""

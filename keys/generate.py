@@ -16,6 +16,7 @@ HOST = os.getenv("HOST", "localhost")  # For sender: receiver's address; for rec
 PORT = int(os.getenv("PORT", "5000"))
 
 def recvall(sock, n):
+    """Read exactly n bytes from socket, handling partial reads."""
     data = b""
     while len(data) < n:
         packet = sock.recv(n - len(data))
@@ -25,6 +26,7 @@ def recvall(sock, n):
     return data
 
 def simulate_qkd(current_index):
+    """Simulate QKD protocol by sending/receiving key chunks with index synchronization."""
     if MODE == "sender":
         while True:
             key_chunk = os.urandom(SKR)
@@ -38,7 +40,6 @@ def simulate_qkd(current_index):
                 # Wait for the receiver's acknowledgement
                 ack = s.recv(1024)
                 if ack == b'ACK':
-                    logging.debug("Sender received ACK")
                     s.close()
                     return key_chunk, current_index
                 else:
@@ -76,7 +77,6 @@ def simulate_qkd(current_index):
         key_chunk = received
         try:
             conn.sendall(b'ACK')
-            logging.debug("Receiver sent ACK")
         except socket.error as e:
             logging.error(f"Receiver error sending ACK: {e}")
         finally:
@@ -106,7 +106,7 @@ with open(BUFFER_PATH, "r+b") as f:
 
         write_index = new_index
         logging.info(f"Generated Key at {sent_index}:{(sent_index + SKR - 1) % BUFFER_SIZE}")
-        
+
         elapsed = time.time() - start_time
         sleep_time = max(0, 1 - elapsed)
         time.sleep(sleep_time)

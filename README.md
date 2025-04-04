@@ -81,18 +81,25 @@ docker compose down
 After running the server and client, the server logs might appear as follows:
 
 ```
-[INFO] Running server on 0.0.0.0:25575
+[INFO] QKDServiceHandler initialized with KSID-based key management
+[INFO] Created new KSID state file at /dev/shm/ksid_state.json
+[INFO] KSID Manager initialized with state file: /dev/shm/ksid_state.json
+[INFO] Using existing buffer file at /dev/shm/qkd_buffer
+[INFO] Running server on 0.0.0.0:25576
 [DEBUG] Version 1.0.1. Received service type: 2
-[DEBUG] Connection Info: {'peername': ('172.25.0.6', 37438), 'cipher': ('TLS_AES_256_GCM_SHA384', 'TLSv1.3', 256)}
+[DEBUG] Connection Info: {'peername': ('172.26.0.6', 60684), 'cipher': ('TLS_AES_256_GCM_SHA384', 'TLSv1.3', 256)}
 [DEBUG] Source URI received by server: client://localhost
-[DEBUG] Destination URI received by server: server://qkd_server_alice
+[DEBUG] Destination URI received by server: server://qkd_server_bob
 [DEBUG] QoS received by server: {'Key_chunk_size': 32, 'Max_bps': 40000, 'Min_bps': 5000, 'Jitter': 10, 'Priority': 0, 'Timeout': 5000, 'TTL': 3600, 'Metadata_mimetype': 'application/json'}
-[INFO] OPEN_CONNECT successful for Key_stream_ID: c42fe0b3-dfa7-4872-b170-9d3b63b1f841
+[INFO] Allocated new KSID: 323bf972-5451-41d3-8cf8-37d22068710c
+[INFO] OPEN_CONNECT successful for Key_stream_ID: 323bf972-5451-41d3-8cf8-37d22068710c
 [DEBUG] Version 1.0.1. Received service type: 4
-[DEBUG] Key delivered by server: first 8 bytes cf677843efe31c95, last 8 bytes 65d50308ea60bd62
-[INFO] GET_KEY successful for Key_stream_ID: c42fe0b3-dfa7-4872-b170-9d3b63b1f841, Index: 0
+[DEBUG] Updated index for KSID 323bf972-5451-41d3-8cf8-37d22068710c to 1
+[DEBUG] Key delivered by server: first 8 bytes bd8c9dd5473f2678, last 8 bytes f23be105a894fba9
+[INFO] GET_KEY successful for Key_stream_ID: 323bf972-5451-41d3-8cf8-37d22068710c, Index: 0
 [DEBUG] Version 1.0.1. Received service type: 8
-[INFO] CLOSE successful for Key_stream_ID: c42fe0b3-dfa7-4872-b170-9d3b63b1f841
+[INFO] Closed KSID: 323bf972-5451-41d3-8cf8-37d22068710c
+[INFO] CLOSE successful for Key_stream_ID: 323bf972-5451-41d3-8cf8-37d22068710c
 ```
 
 ### Client Logs
@@ -100,22 +107,23 @@ After running the server and client, the server logs might appear as follows:
 The client logs might look like this:
 
 ```
-[INFO] Connected to server at qkd_server_alice:25575
+[INFO] Connected to server at qkd_server_bob:25576
 [DEBUG] Source URI sent by client: client://localhost
-[DEBUG] Destination URI sent by client: server://qkd_server_alice
+[DEBUG] Destination URI sent by client: server://qkd_server_bob
 [DEBUG] QoS sent by client: {'Key_chunk_size': 32, 'Max_bps': 40000, 'Min_bps': 5000, 'Jitter': 10, 'Priority': 0, 'Timeout': 5000, 'TTL': 3600, 'Metadata_mimetype': 'application/json'}
 [DEBUG] Version 1.0.1. Received service type: 3
 [DEBUG] QoS received by client: {'Key_chunk_size': 32, 'Max_bps': 40000, 'Min_bps': 5000, 'Jitter': 10, 'Priority': 0, 'Timeout': 5000, 'TTL': 3600, 'Metadata_mimetype': 'application/json'}
-[INFO] OPEN_CONNECT status: 0, Key_stream_ID: c42fe0b3-dfa7-4872-b170-9d3b63b1f841
+[INFO] OPEN_CONNECT status: 0, Key_stream_ID: 323bf972-5451-41d3-8cf8-37d22068710c
+[DEBUG] Adjusted QoS: {'Key_chunk_size': 32, 'Max_bps': 40000, 'Min_bps': 5000, 'Jitter': 10, 'Priority': 0, 'Timeout': 5000, 'TTL': 3600, 'Metadata_mimetype': 'application/json'}
 [DEBUG] Metadata size requested by client: 1024
 [DEBUG] Version 1.0.1. Received service type: 5
 [DEBUG] Index received by client: 0
 [DEBUG] Metadata size received by client: 33
-[DEBUG] Key received by client: first 8 bytes cf677843efe31c95, last 8 bytes 65d50308ea60bd62
-[DEBUG] Metadata received by client: {"age": 1739795939745, "hops": 0}
-[INFO] GET_KEY status: 0, Key_stream_ID: c42fe0b3-dfa7-4872-b170-9d3b63b1f841, Key length: 32, Metadata: {"age": 1739795939745, "hops": 0}
+[DEBUG] Key received by client: first 8 bytes bd8c9dd5473f2678, last 8 bytes f23be105a894fba9
+[DEBUG] Metadata received by client: {"age": 1743600660130, "hops": 0}
+[INFO] GET_KEY status: 0, Key_stream_ID: 323bf972-5451-41d3-8cf8-37d22068710c, Key length: 32, Metadata: {"age": 1743600660130, "hops": 0}
 [DEBUG] Version 1.0.1. Received service type: 9
-[INFO] CLOSE status: 0, Key_stream_ID: c42fe0b3-dfa7-4872-b170-9d3b63b1f841
+[INFO] CLOSE status: 0, Key_stream_ID: 323bf972-5451-41d3-8cf8-37d22068710c
 ```
 
 These logs demonstrate the successful execution of the client-server interactions, including establishing a connection, exchanging keys, and closing the connection.
@@ -125,14 +133,15 @@ These logs demonstrate the successful execution of the client-server interaction
 Below is an example of the test suite output:
 
 ```
-====================== test session starts ======================
-platform linux -- Python 3.9.21, pytest-8.3.4, pluggy-1.5.0
+=============================== test session starts ===============================
+platform linux -- Python 3.9.21, pytest-8.3.5, pluggy-1.5.0
 rootdir: /app
-collected 9 items                                               
+collected 17 items                                                                
 
-tests.py .........                                        [100%]
+tests.py ..........                                                         [ 58%]
+test_key_manager.py .......                                                 [100%]
 
-======================= 9 passed in 0.38s =======================
+=============================== 17 passed in 3.40s ================================
 ```
 
 All tests have passed successfully, indicating that the client interacts with the server as expected under various scenarios, handling exceptions as required by the API standard.
