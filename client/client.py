@@ -74,9 +74,14 @@ class QKDClient:
         }
 
     def connect(self, server_ip, server_port):
-        """Establish a secure connection to the server."""
+        """
+        Establish a secure connection to the server.
+        Returns appropriate ETSI 004 error codes if connection fails.
+        """
         raw_sock = socket.socket(socket.AF_INET)
-        raw_sock.settimeout(5)
+        # Use QoS timeout for socket connection (converting from ms to seconds)
+        raw_sock.settimeout(self.qos['Timeout'] / 1000)
+        
         if SERVER_CERT_PEM and CLIENT_CERT_KEY and CLIENT_CERT_PEM:
             context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
             context.load_cert_chain(certfile=CLIENT_CERT_PEM, keyfile=CLIENT_CERT_KEY)
@@ -88,9 +93,19 @@ class QKDClient:
         try:
             self.sock.connect((server_ip, server_port))
             logging.info(f"Connected to server at {server_ip}:{server_port}")
-        except (TimeoutError, ConnectionRefusedError) as e:
-            logging.error(f"OPEN_CONNECT failed with status: {STATUS_PEER_NOT_CONNECTED}, {e}")
-            raise KnownException(f"OPEN_CONNECT failed with status: {STATUS_PEER_NOT_CONNECTED}") from e
+            return STATUS_SUCCESS
+        except socket.timeout:
+            logging.error(f"Connection timed out to {server_ip}:{server_port}")
+            return STATUS_TIMEOUT
+        except ConnectionRefusedError:
+            logging.error(f"Connection refused to {server_ip}:{server_port}")
+            return STATUS_NO_QKD_CONNECTION
+        except OSError as e:
+            if "Operation now in progress" in str(e) or "timed out" in str(e).lower():
+                logging.error(f"Connection timed out: {str(e)}")
+                return STATUS_TIMEOUT
+            logging.error(f"Connection failed: {str(e)}")
+            return STATUS_NO_QKD_CONNECTION
 
     def recv_full_response(self):
         """Receive the full response from the server."""
@@ -118,8 +133,17 @@ class QKDClient:
             data += chunk
         return data
 
-    def open_connect(self, source_uri, dest_uri):
-        """Execute ETSI 004 OPEN_CONNECT operation (modifies QoS/Key_stream_ID, returns status)."""
+    def open_connect(self, source_uri, dest_uri, qos=None, key_stream_id=None):
+        """
+        Execute ETSI 004 OPEN_CONNECT operation including connection establishment.
+        This function blocks until peers are connected or until timeout.
+        """
+        # First establish the socket connection if not already connected
+        if not hasattr(self, 'sock') or self.sock is None:
+            connect_status = self.connect(SERVER_ADDRESS, SERVER_PORT)
+            if connect_status != STATUS_SUCCESS:
+                return self.qos, None, connect_status
+        
         # Construct payload
         payload = source_uri.encode() + b'\x00'
         payload += dest_uri.encode() + b'\x00'
@@ -138,9 +162,16 @@ class QKDClient:
         try:
             self.sock.sendall(request)
             response = self.recv_full_response()
-        except (TimeoutError, ConnectionRefusedError) as e:
-            logging.error(f"OPEN_CONNECT failed with status: {STATUS_PEER_NOT_CONNECTED}")
-            raise KnownException(f"OPEN_CONNECT failed with status: {STATUS_PEER_NOT_CONNECTED}") from e
+        except socket.timeout:
+            logging.error(f"OPEN_CONNECT request timed out")
+            self.sock.close()
+            self.sock = None
+            return self.qos, None, STATUS_TIMEOUT
+        except Exception as e:
+            logging.error(f"OPEN_CONNECT request failed: {str(e)}")
+            self.sock.close()
+            self.sock = None
+            return self.qos, None, STATUS_PEER_NOT_CONNECTED
 
         # Parse response
         status, key_stream_id = self.parse_open_connect_response(response)
@@ -151,9 +182,10 @@ class QKDClient:
             logging.debug(f"Adjusted QoS: {self.qos}")
         else:
             logging.error(f"OPEN_CONNECT failed with status: {status}")
-            raise KnownException(f"OPEN_CONNECT failed with status: {status}")
+            self.sock.close()
+            self.sock = None
 
-        return status, key_stream_id, self.qos
+        return self.qos, key_stream_id, status
 
     def get_key(self, index, metadata_size):
         """Execute GET_KEY operation returning new_index, key_buffer, metadata, and status."""
@@ -348,21 +380,39 @@ class QKDClient:
         return qos
 
     def main_flow(self, source_uri, dest_uri, index, metadata_size, server_ip=SERVER_ADDRESS, server_port=SERVER_PORT):
-        """Execute the main client flow: connect, open_connect, get_key, close."""
+        """Execute the main client flow: open_connect, get_key, close."""
         key_material = None
         metadata = None
         try:
-            self.connect(server_ip, server_port)
-            status, key_stream_id, qos = self.open_connect(source_uri, dest_uri)
-            if status == STATUS_SUCCESS or status == STATUS_QOS_NOT_MET:
-                new_index, key_material, metadata, status = self.get_key(index, metadata_size=metadata_size)
+            connect_status = self.connect(server_ip, server_port)
+            if connect_status != STATUS_SUCCESS:
+                logging.error(f"OPEN_CONNECT failed with status: {connect_status}")
+                return None, None, connect_status
+            qos, key_stream_id, status = self.open_connect(source_uri, dest_uri)
+            
+            if status != STATUS_SUCCESS and status != STATUS_QOS_NOT_MET:
+                logging.error(f"OPEN_CONNECT failed with status: {status}")
+                return None, None, status
+                
+            new_index, key_material, metadata, get_key_status = self.get_key(index, metadata_size=metadata_size)
+            
+            if get_key_status != STATUS_SUCCESS:
+                logging.error(f"Main flow failed at GET_KEY with status: {get_key_status}")
                 close_status = self.close()
-            return key_material, metadata
-        except KnownException:
-            return None, None
+                return None, None, get_key_status
+                
+            close_status = self.close()
+            return key_material, metadata, STATUS_SUCCESS
+            
+        except Exception as e:
+            logging.error(f"Main flow failed with exception: {str(e)}")
+            return None, None, STATUS_PEER_NOT_CONNECTED
         finally:
             if hasattr(self, 'sock') and self.sock:
-                self.sock.close()
+                try:
+                    self.sock.close()
+                except:
+                    pass
 
     def main_flow_invalid_key_stream_id_get_key(self, index, metadata_size, server_ip=SERVER_ADDRESS, server_port=SERVER_PORT):
         """Execute a flow with invalid Key_stream_ID for GET_KEY."""
