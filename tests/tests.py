@@ -25,8 +25,9 @@ class TestQKDClient:
     def test_successful_flow(self, caplog):
         """Test a successful client flow from OPEN_CONNECT to CLOSE."""
         caplog.set_level(logging.INFO)
+        metadata_buf = bytearray(1024)
         client = QKDClient()
-        client.main_flow(f'client://{CLIENT_ADDRESS}', f'server://{SERVER_ADDRESS}', 0, 1024)
+        client.main_flow(f'client://{CLIENT_ADDRESS}', f'server://{SERVER_ADDRESS}', 0, metadata_buf)
         expected_logs = ["OPEN_CONNECT status: 0", "GET_KEY status: 0", "CLOSE status: 0"]
         for expected_log in expected_logs:
             assert any(expected_log in record.message for record in caplog.records)
@@ -34,8 +35,9 @@ class TestQKDClient:
     def test_insufficient_key_material(self, caplog):
         """Test GET_KEY failure due to insufficient key material."""
         caplog.set_level(logging.INFO)
+        metadata_buf = bytearray(1024)
         client = QKDClient()
-        client.main_flow(f'client://{CLIENT_ADDRESS}', f'server://{SERVER_ADDRESS}', 1000000, 1024)
+        client.main_flow(f'client://{CLIENT_ADDRESS}', f'server://{SERVER_ADDRESS}', 1000000, metadata_buf)
         expected_logs = ["OPEN_CONNECT status: 0", "GET_KEY failed with status: 2"]
         for expected_log in expected_logs:
             assert any(expected_log in record.message for record in caplog.records)
@@ -43,8 +45,9 @@ class TestQKDClient:
     def test_invalid_source_uri(self, caplog):
         """Test OPEN_CONNECT failure due to invalid source URI."""
         caplog.set_level(logging.INFO)
+        metadata_buf = bytearray(1024)
         client = QKDClient()
-        client.main_flow('client', f'server://{SERVER_ADDRESS}', 0, 1024)
+        client.main_flow('client', f'server://{SERVER_ADDRESS}', 0, metadata_buf)
         expected_logs = ["OPEN_CONNECT failed with status: 4"]
         for expected_log in expected_logs:
             assert any(expected_log in record.message for record in caplog.records)
@@ -52,9 +55,10 @@ class TestQKDClient:
     def test_qos_not_met(self, caplog):
         """Test OPEN_CONNECT when QoS parameters cannot be met by the server."""
         caplog.set_level(logging.INFO)
+        metadata_buf = bytearray(1024)
         client = QKDClient()
         client.qos['Max_bps'] = 1000000  # Exceed server's capability
-        client.main_flow(f'client://{CLIENT_ADDRESS}', f'server://{SERVER_ADDRESS}', 0, 1024)
+        client.main_flow(f'client://{CLIENT_ADDRESS}', f'server://{SERVER_ADDRESS}', 0, metadata_buf)
         expected_logs = ["OPEN_CONNECT status: 7", "GET_KEY status: 0", "CLOSE status: 0"]
         for expected_log in expected_logs:
             assert any(expected_log in record.message for record in caplog.records)
@@ -62,8 +66,9 @@ class TestQKDClient:
     def test_metadata_size_insufficient(self, caplog):
         """Test GET_KEY failure due to insufficient metadata size provided by the client."""
         caplog.set_level(logging.INFO)
+        metadata_buf = bytearray(4)
         client = QKDClient()
-        client.main_flow(f'client://{CLIENT_ADDRESS}', f'server://{SERVER_ADDRESS}', 0, 4)
+        client.main_flow(f'client://{CLIENT_ADDRESS}', f'server://{SERVER_ADDRESS}', 0, metadata_buf)
         expected_logs = ["OPEN_CONNECT status: 0", "GET_KEY failed with status: 8"]
         for expected_log in expected_logs:
             assert any(expected_log in record.message for record in caplog.records)
@@ -72,7 +77,8 @@ class TestQKDClient:
         """Test GET_KEY and CLOSE requests with an invalid Key_stream_ID."""
         caplog.set_level(logging.INFO)
         client = QKDClient()
-        client.main_flow_invalid_key_stream_id_get_key(0, 1024)
+        metadata_buf = bytearray(1024)
+        client.main_flow_invalid_key_stream_id_get_key(0, metadata_buf)
         client.main_flow_invalid_key_stream_id_close()
         expected_logs = ["GET_KEY failed with status: 3", "CLOSE failed with status: 3"]
         for expected_log in expected_logs:
@@ -81,8 +87,9 @@ class TestQKDClient:
     def test_peer_not_connected(self, caplog):
         """Test OPEN_CONNECT failure due to server not being reachable."""
         caplog.set_level(logging.INFO)
+        metadata_buf = bytearray(1024)
         client = QKDClient()
-        client.main_flow(f'client://{CLIENT_ADDRESS}', f'server://{SERVER_ADDRESS}', 0, 1024, server_port=50)
+        client.main_flow(f'client://{CLIENT_ADDRESS}', f'server://{SERVER_ADDRESS}', 0, metadata_buf, server_port=50)
         expected_logs = ["OPEN_CONNECT failed with status: 4"]
         for expected_log in expected_logs:
             assert any(expected_log in record.message for record in caplog.records)
@@ -112,9 +119,10 @@ class TestQKDClient:
     def test_timeout(self, caplog):
         """Test GET_KEY failure due to operation timeout."""
         caplog.set_level(logging.INFO)
+        metadata_buf = bytearray(1024)
         client = QKDClient()
         client.qos['Timeout'] = 0
-        client.main_flow(f'client://{CLIENT_ADDRESS}', f'server://{SERVER_ADDRESS}', 0, 1024)
+        client.main_flow(f'client://{CLIENT_ADDRESS}', f'server://{SERVER_ADDRESS}', 0, metadata_buf)
         expected_logs = ["OPEN_CONNECT failed with status: 6"]
         for expected_log in expected_logs:
             assert any(expected_log in record.message for record in caplog.records)
@@ -152,7 +160,8 @@ class TestQKDClient:
         logging.info(f"Generated KSID: {ksid}")
         
         # First client gets key at index 0
-        alice_index, alice_key, alice_metadata, get_status_alice = client_alice.get_key(0, 1024)
+        metadata_buf = bytearray(1024)
+        alice_index, alice_key, alice_metadata, get_status_alice = client_alice.get_key(alice_ksid, 0, metadata_buf)
         assert get_status_alice == STATUS_SUCCESS, f"Expected status {STATUS_SUCCESS}, got {get_status_alice}"
         assert alice_index == 0, f"Expected new index 0, got {alice_index}"
         assert alice_key is not None, "Alice's key was not captured"
@@ -167,7 +176,7 @@ class TestQKDClient:
         assert open_status_bob in (STATUS_SUCCESS, STATUS_QOS_NOT_MET), f"OPEN_CONNECT failed for Bob with status {open_status_bob}"
         
         # Second client gets key at the same index (to verify key synchronization)
-        bob_index, bob_key, bob_metadata, get_status_bob = client_bob.get_key(0, 1024)
+        bob_index, bob_key, bob_metadata, get_status_bob = client_bob.get_key(bob_ksid, 0, metadata_buf)
         assert get_status_bob == STATUS_SUCCESS, f"Expected status {STATUS_SUCCESS}, got {get_status_bob}"
         
         close_status_bob = client_bob.close()

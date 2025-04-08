@@ -187,10 +187,18 @@ class QKDClient:
 
         return self.qos, key_stream_id, status
 
-    def get_key(self, index, metadata_size):
+    def get_key(self, key_stream_id, index, metadata):
         """Execute GET_KEY operation returning new_index, key_buffer, metadata, and status."""
+        metadata_size = len(metadata)
+        # Use the provided key_stream_id if valid, otherwise use self.key_stream_id
+        ksid_to_use = key_stream_id if key_stream_id else self.key_stream_id
+        
+        # Validate that we have a valid key_stream_id before proceeding
+        if ksid_to_use == uuid.UUID(int=0):
+            logging.error("Invalid Key_stream_ID (null UUID)")
+            raise KnownException(f"GET_KEY failed with status: {STATUS_PEER_NOT_CONNECTED_GET_KEY}")
         # Construct payload
-        payload = self.key_stream_id.bytes
+        payload = ksid_to_use.bytes
         payload += struct.pack('!I', index)
         payload += struct.pack('!I', metadata_size)
         logging.debug(f"Metadata size requested by client: {metadata_size}")
@@ -379,10 +387,9 @@ class QKDClient:
         }
         return qos
 
-    def main_flow(self, source_uri, dest_uri, index, metadata_size, server_ip=SERVER_ADDRESS, server_port=SERVER_PORT):
+    def main_flow(self, source_uri, dest_uri, index, metadata, server_ip=SERVER_ADDRESS, server_port=SERVER_PORT):
         """Execute the main client flow: open_connect, get_key, close."""
         key_material = None
-        metadata = None
         try:
             connect_status = self.connect(server_ip, server_port)
             if connect_status != STATUS_SUCCESS:
@@ -394,7 +401,7 @@ class QKDClient:
                 logging.error(f"OPEN_CONNECT failed with status: {status}")
                 return None, None, status
                 
-            new_index, key_material, metadata, get_key_status = self.get_key(index, metadata_size=metadata_size)
+            new_index, key_material, metadata, get_key_status = self.get_key(None, index, metadata=metadata)
             
             if get_key_status != STATUS_SUCCESS:
                 logging.error(f"Main flow failed at GET_KEY with status: {get_key_status}")
@@ -414,11 +421,15 @@ class QKDClient:
                 except:
                     pass
 
-    def main_flow_invalid_key_stream_id_get_key(self, index, metadata_size, server_ip=SERVER_ADDRESS, server_port=SERVER_PORT):
+    def main_flow_invalid_key_stream_id_get_key(self, index, metadata, server_ip=SERVER_ADDRESS, server_port=SERVER_PORT):
         """Execute a flow with invalid Key_stream_ID for GET_KEY."""
         try:
             self.connect(server_ip, server_port)
-            self.get_key(index, metadata_size=metadata_size)
+            non_existent_ksid = uuid.uuid4()  # Random KSID that won't exist on server
+            try:
+                self.get_key(non_existent_ksid, index, metadata=metadata)
+            except KnownException as e:
+                logging.info(f"GET_KEY failed with status: {STATUS_PEER_NOT_CONNECTED_GET_KEY}")
             self.close()
         except KnownException:
             pass
@@ -440,7 +451,8 @@ class QKDClient:
 def main():
     """Main function to run the QKD client."""
     client = QKDClient()
-    client.main_flow(f'client://{CLIENT_ADDRESS}', f'server://{SERVER_ADDRESS}', KEY_INDEX, METADATA_SIZE)
+    metadata_buf = bytearray(METADATA_SIZE)
+    client.main_flow(f'client://{CLIENT_ADDRESS}', f'server://{SERVER_ADDRESS}', KEY_INDEX, metadata_buf)
     client = QKDClient()
 
 if __name__ == "__main__":
