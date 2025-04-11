@@ -106,6 +106,20 @@ class QKDClient:
                 return STATUS_TIMEOUT
             logging.error(f"Connection failed: {str(e)}")
             return STATUS_NO_QKD_CONNECTION
+        
+    def is_socket_connected(self):
+        """Check if the socket is still connected and healthy."""
+        if not hasattr(self, 'sock') or self.sock is None:
+            return False
+        try:
+            if isinstance(self.sock, ssl.SSLSocket):
+                self.sock.getpeername()
+                return True
+            else:
+                self.sock.recv(1, socket.MSG_PEEK | socket.MSG_DONTWAIT)
+                return True
+        except (socket.error, OSError, ValueError):
+            return False
 
     def recv_full_response(self):
         """Receive the full response from the server."""
@@ -189,9 +203,16 @@ class QKDClient:
 
     def get_key(self, key_stream_id, index, metadata):
         """Execute GET_KEY operation returning new_index, key_buffer, metadata, and status."""
+        # First ensure we have a valid connection
+        logging.debug(f"GET_KEY called with socket state: {'connected' if self.is_socket_connected() else 'disconnected'}")
+        logging.debug(f"Socket object: {self.sock}")
+        if not self.is_socket_connected():
+            logging.error("Socket not connected for GET_KEY")
+            return None, None, None, STATUS_PEER_NOT_CONNECTED_GET_KEY
+        
         metadata_size = len(metadata)
         # Use the provided key_stream_id if valid, otherwise use self.key_stream_id
-        ksid_to_use = key_stream_id if key_stream_id else self.key_stream_id
+        ksid_to_use = key_stream_id if key_stream_id and key_stream_id != uuid.UUID(int=0) else self.key_stream_id
         
         # Validate that we have a valid key_stream_id before proceeding
         if ksid_to_use == uuid.UUID(int=0):
@@ -201,6 +222,7 @@ class QKDClient:
         payload = ksid_to_use.bytes
         payload += struct.pack('!I', index)
         payload += struct.pack('!I', metadata_size)
+        logging.debug(f"GET_KEY using Key_stream_ID: {ksid_to_use}")
         logging.debug(f"Metadata size requested by client: {metadata_size}")
 
         # Construct request
@@ -226,6 +248,10 @@ class QKDClient:
 
     def close(self):
         """Close key stream identified by Key_stream_ID and return status code."""
+        # Check if socket is connected
+        if not self.is_socket_connected():
+            logging.error("Socket not connected for CLOSE")
+            return STATUS_PEER_NOT_CONNECTED
         # Construct payload
         payload = self.key_stream_id.bytes
 
