@@ -158,15 +158,26 @@ class QKDClient:
             if connect_status != STATUS_SUCCESS:
                 return self.qos, None, connect_status
         
+        # Determine what key_stream_id to send based on parameter
+        if key_stream_id is None:
+            # Alice case: request new session - send null UUID (all zeros)
+            ksid_to_send = uuid.UUID(int=0)
+            logging.debug(f"[CLIENT] Requesting NEW session (Alice case)")
+        else:
+            # Bob case: join existing session - send Alice's UUID
+            ksid_to_send = key_stream_id
+            logging.debug(f"[CLIENT] Requesting to JOIN session: {key_stream_id} (Bob case)")
+        
         # Construct payload
         payload = source_uri.encode() + b'\x00'
         payload += dest_uri.encode() + b'\x00'
         payload += self.construct_qos(self.qos)
-        payload += self.key_stream_id.bytes
+        payload += ksid_to_send.bytes
 
         # Logging statements
         logging.debug(f"Source URI sent by client: {source_uri}")
         logging.debug(f"Destination URI sent by client: {dest_uri}")
+        logging.debug(f"Key Stream ID sent by client: {ksid_to_send}")
         logging.debug(f"QoS sent by client: {self.qos}")
 
         # Construct request
@@ -178,28 +189,31 @@ class QKDClient:
             response = self.recv_full_response()
         except socket.timeout:
             logging.error(f"OPEN_CONNECT request timed out")
-            self.sock.close()
-            self.sock = None
+            if self.sock:
+                self.sock.close()
+                self.sock = None
             return self.qos, None, STATUS_TIMEOUT
         except Exception as e:
             logging.error(f"OPEN_CONNECT request failed: {str(e)}")
-            self.sock.close()
-            self.sock = None
+            if self.sock:
+                self.sock.close()
+                self.sock = None
             return self.qos, None, STATUS_PEER_NOT_CONNECTED
 
         # Parse response
-        status, key_stream_id = self.parse_open_connect_response(response)
+        status, returned_key_stream_id = self.parse_open_connect_response(response)
         if status == STATUS_SUCCESS or status == STATUS_QOS_NOT_MET:
-            self.key_stream_id = key_stream_id
+            self.key_stream_id = returned_key_stream_id
             # QoS has been updated in parse_open_connect_response
             logging.info(f"OPEN_CONNECT status: {status}, Key_stream_ID: {self.key_stream_id}")
             logging.debug(f"Adjusted QoS: {self.qos}")
         else:
             logging.error(f"OPEN_CONNECT failed with status: {status}")
-            self.sock.close()
-            self.sock = None
+            if self.sock:
+                self.sock.close()
+                self.sock = None
 
-        return self.qos, key_stream_id, status
+        return self.qos, returned_key_stream_id, status
 
     def get_key(self, key_stream_id, index, metadata):
         """Execute GET_KEY operation returning new_index, key_buffer, metadata, and status."""
