@@ -116,7 +116,7 @@ class QKDClient:
                 self.sock.getpeername()
                 return True
             else:
-                self.sock.recv(1, socket.MSG_PEEK | socket.MSG_DONTWAIT)
+                self.sock.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)
                 return True
         except (socket.error, OSError, ValueError):
             return False

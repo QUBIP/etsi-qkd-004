@@ -69,7 +69,8 @@ class KSIDManager:
             self.ksid_cache = {}
             self.last_update_time = time.time()
 
-    def _load_state_from_file(self):
+    def _load_state_from_file(self): 
+        # TODO: KSID handling fails when the ksid_state.json is not deleted before running
         """Load state from file to cache."""
         try:
             if os.path.exists(self.state_file_path):
