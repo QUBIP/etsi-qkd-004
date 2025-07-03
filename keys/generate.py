@@ -6,7 +6,7 @@ import socket
 import errno
 import struct
 
-logging.basicConfig(level=logging.DEBUG, format='[%(levelname)s] %(message)s')
+logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
 
 BUFFER_SIZE = int(os.getenv("BUFFER_SIZE", "5000"))
 BUFFER_PATH = os.getenv("BUFFER_PATH", "/dev/shm/qkd_buffer")
@@ -44,7 +44,7 @@ def simulate_qkd(current_index):
                 else:
                     logging.error("Sender did not receive ACK")
             except socket.error as e:
-                if e.errno == errno.ECONNREFUSED:
+                if e.errno == errno.ECONNRESET or e.errno == errno.ECONNREFUSED:
                     pass
                 else:
                     logging.error(f"Sender error: {e}")
