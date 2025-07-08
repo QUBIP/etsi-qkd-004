@@ -11,7 +11,7 @@ logging.basicConfig(level=logging.DEBUG, format='[%(levelname)s] %(message)s')
 # Constants
 SERVER_IP = os.getenv('SERVER_ADDRESS', '0.0.0.0')
 SERVER_PORT = int(os.getenv('SERVER_PORT', 25576))
-BUFFER_SIZE = int(os.getenv('SERVER_PORT', 65057))
+BUFFER_SIZE = int(os.getenv('BUFFER_SIZE', 65057))
 BUFFER_PATH = os.getenv("BUFFER_PATH", "/dev/shm/qkd_buffer")
 
 class QKDServer:
@@ -60,15 +60,27 @@ class QKDServer:
 
     def start(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
+            server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             server_socket.bind((self.host, self.port))
             server_socket.listen()
             logging.info(f"Server listening on {self.host}:{self.port}")
             while True:
                 client_socket, client_address = server_socket.accept()
                 with client_socket:
-                    request = client_socket.recv(BUFFER_SIZE).decode("utf8")
-                    response = self.process_request(request, client_address)
-                    client_socket.sendall(json.dumps(response).encode("utf8"))
+                    while True:
+                        try:
+                            request = client_socket.recv(BUFFER_SIZE).decode("utf8")
+                            if not request:
+                                logging.info("Client closed the connection.")
+                                break
+                            response = self.process_request(request, client_address)
+                            client_socket.sendall(json.dumps(response).encode("utf8"))
+                        except ConnectionResetError:
+                            logging.warning("Client disconnected unexpectedly.")
+                            break
+                        except Exception as e:
+                            logging.error(f"Unexpected error: {e}")
+                            break
 
 if __name__ == "__main__":
     QKDServer(SERVER_IP, SERVER_PORT).start()

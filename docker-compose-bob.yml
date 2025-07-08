@@ -7,9 +7,7 @@ services:
     volumes:
       - qkd_shared_bob:/dev/shm
     ports:
-      - "25575:25575"
-    networks:
-      - qkd_network
+      - "25576:25576"
 
   generate_key_bob:
     build: ./keys
@@ -22,23 +20,9 @@ services:
       - SKR=100  # Secret Key Rate (in bytes per second)
     volumes:
       - qkd_shared_bob:/dev/shm
-    networks:
-      key_network:
-        ipv4_address: 10.0.0.20
     ports:
       - "5000:5000"
 
-networks:
-  qkd_network:
-    driver: bridge
-  key_network:
-    driver: ipvlan
-    driver_opts:
-      parent: eno8303
-    ipam:
-      config:
-        - subnet: 10.0.0.0/24
-        
 volumes:
   qkd_shared_bob:
     driver_opts:

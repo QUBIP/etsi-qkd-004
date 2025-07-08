@@ -8,8 +8,6 @@ services:
       - qkd_shared_alice:/dev/shm
     ports:
       - "25575:25575"
-    networks:
-      - qkd_network
 
   generate_key_alice:
     build: ./keys
@@ -18,25 +16,11 @@ services:
       - BUFFER_SIZE=100000  # Key buffer size
       - BUFFER_PATH=/dev/shm/qkd_buffer  # Key buffer memory path
       - MODE=sender  # Sender or receiver mode (Alice or Bob)
-      - HOST=10.0.0.20  # Receiver host address
+      - HOST=192.168.0.157  # Receiver host address
       - PORT=5000  # Receiver host port
       - SKR=100  # Secret Key Rate (in bytes per second)
     volumes:
       - qkd_shared_alice:/dev/shm
-    networks:
-      key_network:
-        ipv4_address: 10.0.0.11
-
-networks:
-  qkd_network:
-    driver: bridge
-  key_network:
-    driver: ipvlan
-    driver_opts:
-      parent: eno8303
-    ipam:
-      config:
-        - subnet: 10.0.0.0/24
 
 volumes:
   qkd_shared_alice:
