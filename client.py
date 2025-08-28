@@ -8,10 +8,11 @@ BUFFER_SIZE = 65057
 
 # Default open_connect_request file
 OPEN_CONNECT_REQUEST_FILE = 'config/open_connect_request.json'
+NODE_NAME = 'alice'
 
 # Check if a file name was passed as argument
 if len(sys.argv) > 1:
-    OPEN_CONNECT_REQUEST_FILE = sys.argv[1]
+    NODE_NAME = sys.argv[1]
 # Validate if the file exists
 if not os.path.exists(OPEN_CONNECT_REQUEST_FILE):
     print(f"Error: {OPEN_CONNECT_REQUEST_FILE} does not exist")
@@ -21,7 +22,7 @@ def load_config():
     """
     Load the configuration file for each node (config.json).
     """
-    config_file = "config/local_node.json"
+    config_file = f"config/local_node_{NODE_NAME}.json"
     try:
         with open(config_file, "r") as f:
             print(f"Loaded configuration from {config_file}")

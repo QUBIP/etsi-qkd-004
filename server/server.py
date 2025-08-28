@@ -119,13 +119,18 @@ class QKDServer:
         path = sess["buffer_path"]
 
         try:
-            with open(path, "rb") as f:
-                with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as buf:
+            with open(path, "r+b") as f:
+                with mmap.mmap(f.fileno(), 0) as buf:
                     offset = req_index * chunk
                     if offset + chunk > len(buf):
                         logging.error(f"Insufficient key material at index {req_index}")
                         return {"status": 1, "error": "Insufficient key material"}
                     key_data = buf[offset:offset + chunk]
+                    remaining_after = len(buf) - (offset + chunk)
+                    if remaining_after > 0:
+                        buf.move(offset, offset + chunk, remaining_after)
+                    buf[-chunk:] = b"\x00" * chunk
+                    buf.flush()
         except FileNotFoundError:
             return {"status": 1, "error": "Buffer file not found"}
         except Exception as e:

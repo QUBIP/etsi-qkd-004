@@ -1,0 +1,20 @@
+{
+  "local_node": {
+    "uuid": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+    "hybridization_address": ["10.10.10.211", 65430],
+    "qkd_address": ["10.0.0.5", 25576],
+    "peer_local_address": ["0.0.0.0", 3001]
+  },
+  "remote_nodes": [
+    {
+      "uuid": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+      "peer_remote_link": ["192.168.159.21", 3001],
+      "shared_seed" : "123456789"
+    },
+    {
+      "uuid": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+      "peer_remote_link": ["192.168.159.50", 3001],
+      "shared_seed" : "123456789"
+    }
+  ]
+}

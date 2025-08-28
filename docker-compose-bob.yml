@@ -1,0 +1,34 @@
+services:
+
+  # generate_key_alice_bob_server:
+  #   build: ./keys
+  #   container_name: generate_key_alice_bob_server
+  #   environment:
+  #     - BUFFER_SIZE=100000  # Key buffer size
+  #     - BUFFER_PATH=/dev/shm/qkd_buffer_ab  # Key buffer memory path
+  #     - MODE=receiver  # Sender or receiver mode (Alice or Bob)
+  #     - PORT=34560  # Receiver host port
+  #     - SKR=100  # Secret Key Rate (in bytes per second)
+  #   volumes:
+  #     - qkd_shared_bob:/dev/shm
+  #   network_mode: "host"
+
+  qkd_server_bob:
+    build: ./server
+    container_name: qkd_server_bob
+    environment:
+      - SERVER_PORT=25576
+      - LINK_BUFFER_MAP_FILE=/etc/qkd/link_map.json
+      - LOCAL_NODE_UUID=bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb
+    volumes:
+      # - qkd_shared_bob:/dev/shm
+      - /home/xilinx/jupyter_notebooks/cv-qkd/data:/dev/shm
+      - ./config/link_map.json:/etc/qkd/link_map.json:ro
+    network_mode: "host"
+    restart: unless-stopped
+
+volumes:
+  qkd_shared_bob:
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
