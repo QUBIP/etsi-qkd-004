@@ -1,0 +1,17 @@
+{
+    "command": "OPEN_CONNECT",
+    "data": {
+        "source": "hybrid://SPI_1@aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa?hybridization=xoring&kem_mec=ML-KEM-512",
+        "destination": "hybrid://SPI_1@bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb?hybridization=xoring&kem_mec=ML-KEM-512",
+        "qos": {
+            "key_chunk_size": 32,
+            "max_bps": 32,
+            "min_bps": 32,
+            "jitter": 0,
+            "priority": 0,
+            "timeout": 0,
+            "ttl": 0,
+            "metadata_mimetype": "application/json"
+        }
+    }
+}

@@ -1,0 +1,80 @@
+services:
+
+  generate_key_alice:
+    build: ./keys
+    container_name: generate_key_alice
+    environment:
+      - BUFFER_SIZE=100000  # Key buffer size
+      - BUFFER_PATH=/dev/shm/qkd_buffer  # Key buffer memory path
+      - MODE=sender  # Sender or receiver mode (Alice or Bob)
+      - HOST=generate_key_bob  # Receiver host address
+      - PORT=34562  # Receiver host port
+      - SKR=100  # Secret Key Rate (in bytes per second)
+    volumes:
+      - qkd_shared_alice:/dev/shm
+    # networks:
+    #   key_network:
+    #     ipv4_address: 192.168.100.11
+
+  generate_key_bob:
+    build: ./keys
+    container_name: generate_key_bob
+    environment:
+      - BUFFER_SIZE=100000  # Key buffer size
+      - BUFFER_PATH=/dev/shm/qkd_buffer  # Key buffer memory path
+      - MODE=receiver  # Sender or receiver mode (Alice or Bob)
+      - PORT=34562  # Receiver host port
+      - SKR=100  # Secret Key Rate (in bytes per second)
+    volumes:
+      - qkd_shared_bob:/dev/shm
+    # networks:
+    #   key_network:
+    #     ipv4_address: 192.168.100.20
+    ports:
+      - "34562:34562"
+
+  qkd_server_alice:
+    build: ./server
+    container_name: qkd_server_alice
+    environment:
+      - SERVER_PORT=25575
+    volumes:
+      - qkd_shared_alice:/dev/shm
+    ports:
+      - "25575:25575"
+    # networks:
+    #   stack_network:
+    #     ipv4_address: 10.10.10.3  
+
+  qkd_server_bob:
+    build: ./server
+    container_name: qkd_server_bob
+    environment:
+      - SERVER_PORT=25576
+    volumes:
+      - qkd_shared_bob:/dev/shm
+    ports:
+      - "25576:25576"
+    # networks:
+    #   stack_network:
+    #     ipv4_address: 10.10.10.4
+
+volumes:
+  qkd_shared_alice:
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+
+  qkd_shared_bob:
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+
+# networks:
+#   key_network:
+#     driver: ipvlan
+#     driver_opts:
+#       parent: eno8303
+#     ipam:
+#       config:
+#         - subnet: 192.168.100.0/24 

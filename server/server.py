@@ -10,7 +10,7 @@ logging.basicConfig(level=logging.DEBUG, format='[%(levelname)s] %(message)s')
 
 # Constants
 SERVER_IP = os.getenv('SERVER_ADDRESS', '0.0.0.0')
-SERVER_PORT = int(os.getenv('SERVER_PORT', 25576))
+SERVER_PORT = int(os.getenv('SERVER_PORT', 25575))
 BUFFER_SIZE = int(os.getenv('BUFFER_SIZE', 65057))
 BUFFER_PATH = os.getenv("BUFFER_PATH", "/dev/shm/qkd_buffer")
 
@@ -23,10 +23,12 @@ class QKDServer:
     def handle_open_connect(self, data):
         key_stream_id = str(uuid.uuid4())
         self.sessions[key_stream_id] = data["data"]["qos"]["key_chunk_size"]
+        logging.info(f'OPEN_CONNECT - Saving new session KSID: {key_stream_id}')
         return {"status": 0, "key_stream_id": key_stream_id}
 
     def handle_get_key(self, data):
         key_stream_id = data["data"]["key_stream_id"]
+        logging.info(f'GET_KEY - Requesting KSID: {key_stream_id}')
         if key_stream_id not in self.sessions:
             return {"status": 1, "error": "Invalid key_stream_id"}
         key_chunk_size = self.sessions[key_stream_id]
@@ -41,7 +43,9 @@ class QKDServer:
         return {"status": 0, "index": data["data"]["index"], "key_buffer": key_data.hex()}
 
     def handle_close(self, data):
-        self.sessions.pop(data["data"]["key_stream_id"], None)
+        key_stream_id = data["data"]["key_stream_id"]
+        self.sessions.pop(key_stream_id, None)
+        logging.info(f'CLOSE - Requesting KSID: {key_stream_id}')
         return {"status": 0}
 
     def process_request(self, request, client_address):
