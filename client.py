@@ -7,7 +7,7 @@ import sys
 BUFFER_SIZE = 65057
 
 # Default open_connect_request file
-OPEN_CONNECT_REQUEST_FILE = 'open_connect_request.json'
+OPEN_CONNECT_REQUEST_FILE = 'config/open_connect_request.json'
 
 # Check if a file name was passed as argument
 if len(sys.argv) > 1:
@@ -21,7 +21,7 @@ def load_config():
     """
     Load the configuration file for each node (config.json).
     """
-    config_file = "config.json"
+    config_file = "config/local_node.json"
     try:
         with open(config_file, "r") as f:
             print(f"Loaded configuration from {config_file}")

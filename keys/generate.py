@@ -105,7 +105,7 @@ with open(BUFFER_PATH, "r+b") as f:
             buffer[sent_index:new_index] = chunk
 
         write_index = new_index
-        logging.info(f"Generated Key at {sent_index}:{(sent_index + SKR - 1) % BUFFER_SIZE}")
+        logging.debug(f"Generated Key at {sent_index}:{(sent_index + SKR - 1) % BUFFER_SIZE}")
         
         elapsed = time.time() - start_time
         sleep_time = max(0, 1 - elapsed)

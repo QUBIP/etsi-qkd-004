@@ -1,15 +1,11 @@
 To run the program execute this in Alice node:
 
 ```bash
-docker compose -f docker-compose-alice.yml kill && \
-docker compose -f docker-compose-alice.yml up -d --build --force-recreate && \
-docker compose -f docker-compose-alice.yml logs -f qkd_server_alice
+docker compose kill && docker compose up -d --build && docker compose logs -f
 ```
 
-and this in Bob node:
+To test the client edit `config/link_map.json`, `config/config.json` and `config/open_connect_request.json` and execute the client with:
 
 ```bash
-docker compose -f docker-compose-bob.yml kill && \
-docker compose -f docker-compose-bob.yml up -d --build --force-recreate && \
-docker compose -f docker-compose-bob.yml logs -f qkd_server_bob
+python client.py
 ```

@@ -1,14 +1,14 @@
 services:
 
-  generate_key_alice:
+  generate_key_alice_bob_client:
     build: ./keys
-    container_name: generate_key_alice
+    container_name: generate_key_alice_bob_client
     environment:
       - BUFFER_SIZE=100000  # Key buffer size
-      - BUFFER_PATH=/dev/shm/qkd_buffer  # Key buffer memory path
+      - BUFFER_PATH=/dev/shm/qkd_buffer_ab  # Key buffer memory path
       - MODE=sender  # Sender or receiver mode (Alice or Bob)
-      - HOST=generate_key_bob  # Receiver host address
-      - PORT=34562  # Receiver host port
+      - HOST=generate_key_alice_bob_server  # Receiver host address
+      - PORT=34560  # Receiver host port
       - SKR=100  # Secret Key Rate (in bytes per second)
     volumes:
       - qkd_shared_alice:/dev/shm
@@ -16,17 +16,83 @@ services:
     #   key_network:
     #     ipv4_address: 192.168.100.11
 
-  generate_key_bob:
+  generate_key_alice_bob_server:
     build: ./keys
-    container_name: generate_key_bob
+    container_name: generate_key_alice_bob_server
     environment:
       - BUFFER_SIZE=100000  # Key buffer size
-      - BUFFER_PATH=/dev/shm/qkd_buffer  # Key buffer memory path
+      - BUFFER_PATH=/dev/shm/qkd_buffer_ab  # Key buffer memory path
       - MODE=receiver  # Sender or receiver mode (Alice or Bob)
+      - PORT=34560  # Receiver host port
+      - SKR=100  # Secret Key Rate (in bytes per second)
+    volumes:
+      - qkd_shared_bob:/dev/shm
+    # networks:
+    #   key_network:
+    #     ipv4_address: 192.168.100.20
+    ports:
+      - "34560:34560"
+
+  generate_key_alice_charly_client:
+    build: ./keys
+    container_name: generate_key_alice_charly_client
+    environment:
+      - BUFFER_SIZE=100000  # Key buffer size
+      - BUFFER_PATH=/dev/shm/qkd_buffer_ac  # Key buffer memory path
+      - MODE=sender  # Sender or receiver mode (Alice or Bob)
+      - HOST=generate_key_alice_charly_server  # Receiver host address
+      - PORT=34561  # Receiver host port
+      - SKR=100  # Secret Key Rate (in bytes per second)
+    volumes:
+      - qkd_shared_alice:/dev/shm
+    # networks:
+    #   key_network:
+    #     ipv4_address: 192.168.100.11
+
+  generate_key_alice_charly_server:
+    build: ./keys
+    container_name: generate_key_alice_charly_server
+    environment:
+      - BUFFER_SIZE=100000  # Key buffer size
+      - BUFFER_PATH=/dev/shm/qkd_buffer_ac  # Key buffer memory path
+      - MODE=receiver  # Sender or receiver mode (Alice or Bob)
+      - PORT=34561  # Receiver host port
+      - SKR=100  # Secret Key Rate (in bytes per second)
+    volumes:
+      - qkd_shared_charly:/dev/shm
+    # networks:
+    #   key_network:
+    #     ipv4_address: 192.168.100.20
+    ports:
+      - "34561:34561"
+
+  generate_key_bob_charly_client:
+    build: ./keys
+    container_name: generate_key_bob_charly_client
+    environment:
+      - BUFFER_SIZE=100000  # Key buffer size
+      - BUFFER_PATH=/dev/shm/qkd_buffer_bc  # Key buffer memory path
+      - MODE=sender  # Sender or receiver mode (Alice or Bob)
+      - HOST=generate_key_bob_charly_server  # Receiver host address
       - PORT=34562  # Receiver host port
       - SKR=100  # Secret Key Rate (in bytes per second)
     volumes:
       - qkd_shared_bob:/dev/shm
+    # networks:
+    #   key_network:
+    #     ipv4_address: 192.168.100.11
+
+  generate_key_bob_charly_server:
+    build: ./keys
+    container_name: generate_key_bob_charly_server
+    environment:
+      - BUFFER_SIZE=100000  # Key buffer size
+      - BUFFER_PATH=/dev/shm/qkd_buffer_bc  # Key buffer memory path
+      - MODE=receiver  # Sender or receiver mode (Alice or Bob)
+      - PORT=34562  # Receiver host port
+      - SKR=100  # Secret Key Rate (in bytes per second)
+    volumes:
+      - qkd_shared_charly:/dev/shm
     # networks:
     #   key_network:
     #     ipv4_address: 192.168.100.20
@@ -38,8 +104,11 @@ services:
     container_name: qkd_server_alice
     environment:
       - SERVER_PORT=25575
+      - LINK_BUFFER_MAP_FILE=/etc/qkd/link_map.json
+      - LOCAL_NODE_UUID=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa
     volumes:
       - qkd_shared_alice:/dev/shm
+      - ./config/link_map.json:/etc/qkd/link_map.json:ro
     ports:
       - "25575:25575"
     # networks:
@@ -51,13 +120,32 @@ services:
     container_name: qkd_server_bob
     environment:
       - SERVER_PORT=25576
+      - LINK_BUFFER_MAP_FILE=/etc/qkd/link_map.json
+      - LOCAL_NODE_UUID=bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb
     volumes:
       - qkd_shared_bob:/dev/shm
+      - ./config/link_map.json:/etc/qkd/link_map.json:ro
     ports:
       - "25576:25576"
     # networks:
     #   stack_network:
     #     ipv4_address: 10.10.10.4
+
+  qkd_server_charly:
+    build: ./server
+    container_name: qkd_server_charly
+    environment:
+      - SERVER_PORT=25577
+      - LINK_BUFFER_MAP_FILE=/etc/qkd/link_map.json
+      - LOCAL_NODE_UUID=cccccccc-cccc-cccc-cccc-cccccccccccc
+    volumes:
+      - qkd_shared_charly:/dev/shm
+      - ./config/link_map.json:/etc/qkd/link_map.json:ro
+    ports:
+      - "25577:25577"
+    # networks:
+    #   stack_network:
+    #     ipv4_address: 10.10.10.5
 
 volumes:
   qkd_shared_alice:
@@ -66,6 +154,11 @@ volumes:
       device: tmpfs
 
   qkd_shared_bob:
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+
+  qkd_shared_charly:
     driver_opts:
       type: tmpfs
       device: tmpfs
