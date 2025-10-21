@@ -6,7 +6,7 @@ import socket
 import errno
 import struct
 
-logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
+logging.basicConfig(level=logging.DEBUG, format='[%(levelname)s] %(message)s')
 
 BUFFER_SIZE = int(os.getenv("BUFFER_SIZE", "5000"))
 BUFFER_PATH = os.getenv("BUFFER_PATH", "/dev/shm/qkd_buffer")

@@ -1,5 +1,3 @@
 {
-  "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa|bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb": "/dev/shm/qkd_buffer_ab",
-  "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa|cccccccc-cccc-cccc-cccc-cccccccccccc": "/dev/shm/qkd_buffer_ac",
-  "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb|cccccccc-cccc-cccc-cccc-cccccccccccc": "/dev/shm/qkd_buffer_bc"
+  "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa|bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb": "/dev/shm/key_buffer.bin"
 }

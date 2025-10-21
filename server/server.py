@@ -121,7 +121,11 @@ class QKDServer:
         try:
             with open(path, "rb") as f:
                 with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as buf:
-                    key_data = buf[:chunk]
+                    offset = req_index * chunk
+                    if offset + chunk > len(buf):
+                        logging.error(f"Insufficient key material at index {req_index}")
+                        return {"status": 1, "error": "Insufficient key material"}
+                    key_data = buf[offset:offset + chunk]
         except FileNotFoundError:
             return {"status": 1, "error": "Buffer file not found"}
         except Exception as e:
