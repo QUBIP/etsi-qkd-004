@@ -98,7 +98,9 @@ with open(BUFFER_PATH, "r+b") as f:
         if chunk is None:
             continue  # Skip iteration if an error occurred.
         new_index = (sent_index + SKR) % BUFFER_SIZE
-        if new_index < sent_index:
+        if SKR == BUFFER_SIZE:
+            buffer[:] = chunk
+        elif new_index < sent_index:
             buffer[sent_index:] = chunk[:BUFFER_SIZE - sent_index]
             buffer[:new_index] = chunk[BUFFER_SIZE - sent_index:]
         else:

@@ -13,7 +13,7 @@ logging.basicConfig(level=logging.DEBUG, format='[%(levelname)s] %(message)s')
 # Constants / environment
 SERVER_IP = os.getenv('SERVER_ADDRESS', '0.0.0.0')
 SERVER_PORT = int(os.getenv('SERVER_PORT', 25575))
-BUFFER_SIZE = int(os.getenv('BUFFER_SIZE', 65057))
+SOCKET_SIZE = int(os.getenv('SOCKET_SIZE', 65057))
 LOCAL_NODE_UUID = os.getenv('LOCAL_NODE_UUID')
 LINK_BUFFER_MAP_FILE = os.getenv('LINK_BUFFER_MAP_FILE')
 
@@ -119,9 +119,18 @@ class QKDServer:
         path = sess["buffer_path"]
 
         try:
-            with open(path, "rb") as f:
-                with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as buf:
-                    key_data = buf[:chunk]
+            with open(path, "r+b") as f:
+                with mmap.mmap(f.fileno(), 0) as buf:
+                    offset = req_index * chunk
+                    if offset + chunk > len(buf):
+                        logging.error(f"Insufficient key material at index {req_index}")
+                        return {"status": 1, "error": "Insufficient key material"}
+                    key_data = buf[offset:offset + chunk]
+                    remaining_after = len(buf) - (offset + chunk)
+                    if remaining_after > 0:
+                        buf.move(offset, offset + chunk, remaining_after)
+                    buf[-chunk:] = b"\x00" * chunk
+                    buf.flush()
         except FileNotFoundError:
             return {"status": 1, "error": "Buffer file not found"}
         except Exception as e:
@@ -174,7 +183,7 @@ class QKDServer:
                 with c:
                     while True:
                         try:
-                            req = c.recv(BUFFER_SIZE).decode("utf8")
+                            req = c.recv(SOCKET_SIZE).decode("utf8")
                             if not req:
                                 logging.info("Client closed the connection.")
                                 break
