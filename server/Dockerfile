@@ -1,4 +1,4 @@
-FROM python:3.9
+FROM gcr.io/distroless/python3
 
 # Set working directory
 WORKDIR /app
@@ -10,4 +10,4 @@ COPY server.py .
 EXPOSE 25575
 
 # Run the server script
-CMD ["python", "server.py"]
+CMD ["server.py"]
