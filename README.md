@@ -50,12 +50,23 @@ docker compose up --build -d qkd_server_alice qkd_server_bob generate_key_alice 
 
 ### Run the Clients
 
-Run the clients:
+Run Alice client (creates a new Key Stream ID):
 
 ```bash
 docker compose run --build --rm qkd_client_alice
-docker compose run --build --rm qkd_client_bob
 ```
+
+Alice will request a new session and generate a `KEY_STREAM_ID`.
+
+Check Alice’s logs for the KSID (`b0b41b31-62cb-4a1e-a4a7-51bf5bb92d98`).
+
+Run Bob client (reuses Alice’s Key Stream ID):
+
+```bash
+docker compose run --build --rm -e KEY_STREAM_ID=b0b41b31-62cb-4a1e-a4a7-51bf5bb92d98 qkd_client_bob
+```
+
+Bob will join the same session and receive the same key material.
 
 ### Run the Tests
 

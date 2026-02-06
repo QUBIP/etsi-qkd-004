@@ -3,9 +3,6 @@ services:
     build: ./server
     container_name: qkd_server_alice
     environment:
-      - SERVER_CERT_PEM=/certs/server_cert_qkd_server_alice.pem  # Server public key
-      - SERVER_CERT_KEY=/certs/server_key_qkd_server_alice.pem  # Server private key
-      - CLIENT_CERT_PEM=/certs/client_cert_qkd_server_alice.pem  # Client public key
       - SERVER_ADDRESS=0.0.0.0  # Server bind address
       - SERVER_PORT=25575  # Server port
       - BUFFER_PATH=/dev/shm/qkd_buffer  # Key buffer memory path 
@@ -29,9 +26,6 @@ services:
     build: ./server
     container_name: qkd_server_bob
     environment:
-      - SERVER_CERT_PEM=/certs/server_cert_qkd_server_bob.pem  # Server public key
-      - SERVER_CERT_KEY=/certs/server_key_qkd_server_bob.pem  # Server private key
-      - CLIENT_CERT_PEM=/certs/client_cert_qkd_server_bob.pem  # Client public key
       - SERVER_ADDRESS=0.0.0.0  # Server bind address
       - SERVER_PORT=25576  # Server port
       - BUFFER_PATH=/dev/shm/qkd_buffer  # Key buffer memory path
@@ -55,9 +49,6 @@ services:
     build: ./client
     container_name: qkd_client_alice
     environment:
-      - CLIENT_CERT_PEM=/certs/client_cert_qkd_server_alice.pem  # Server public key
-      - CLIENT_CERT_KEY=/certs/client_key_qkd_server_alice.pem  # Server private key
-      - SERVER_CERT_PEM=/certs/server_cert_qkd_server_alice.pem  # Client public key
       - SERVER_ADDRESS=qkd_server_alice  # Remote server address
       - CLIENT_ADDRESS=localhost  # Client local address
       - SERVER_PORT=25575  # Server port
@@ -79,9 +70,6 @@ services:
     build: ./client
     container_name: qkd_client_bob
     environment:
-      - CLIENT_CERT_PEM=/certs/client_cert_qkd_server_bob.pem  # Server public key
-      - CLIENT_CERT_KEY=/certs/client_key_qkd_server_bob.pem  # Server private key
-      - SERVER_CERT_PEM=/certs/server_cert_qkd_server_bob.pem  # Client public key
       - SERVER_ADDRESS=qkd_server_bob  # Remote server address
       - CLIENT_ADDRESS=localhost  # Client local address
       - SERVER_PORT=25576  # Server port
@@ -141,9 +129,6 @@ services:
       - generate_key_alice
       - generate_key_bob
     environment:
-      - CLIENT_CERT_PEM=/certs/client_cert_qkd_server_alice.pem  # Server public key
-      - CLIENT_CERT_KEY=/certs/client_key_qkd_server_alice.pem  # Server private key
-      - SERVER_CERT_PEM=/certs/server_cert_qkd_server_alice.pem  # Client public key
       - SERVER_ADDRESS=qkd_server_alice  # Remote server address
       - CLIENT_ADDRESS=localhost  # Client local address
       - SERVER_PORT=25575  # Server port
@@ -163,9 +148,6 @@ services:
       - generate_key_alice
       - generate_key_bob
     environment:
-      - CLIENT_CERT_PEM=/certs/client_cert_qkd_server_bob.pem  # Server public key
-      - CLIENT_CERT_KEY=/certs/client_key_qkd_server_bob.pem  # Server private key
-      - SERVER_CERT_PEM=/certs/server_cert_qkd_server_bob.pem  # Client public key
       - SERVER_ADDRESS=qkd_server_bob  # Remote server address
       - CLIENT_ADDRESS=localhost  # Client local address
       - SERVER_PORT=25576  # Server port

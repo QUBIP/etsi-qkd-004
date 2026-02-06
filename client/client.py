@@ -159,15 +159,19 @@ class QKDClient:
                 return self.qos, None, connect_status
         
         # Determine what key_stream_id to send based on parameter
-        if key_stream_id is None:
+        if key_stream_id is not None:
+            # Forced KSID
+            ksid_to_send = key_stream_id
+            logging.debug(f"[CLIENT] Requesting to JOIN session: {key_stream_id} (Forced case)")
+        elif self.key_stream_id != uuid.UUID(int=0):
+            # Bob case: join existing session - send Alice's UUID
+            ksid_to_send = self.key_stream_id
+            logging.debug(f"[CLIENT] Requesting to JOIN session: {key_stream_id} (Bob case)")
+        else:
             # Alice case: request new session - send null UUID (all zeros)
             ksid_to_send = uuid.UUID(int=0)
             logging.debug(f"[CLIENT] Requesting NEW session (Alice case)")
-        else:
-            # Bob case: join existing session - send Alice's UUID
-            ksid_to_send = key_stream_id
-            logging.debug(f"[CLIENT] Requesting to JOIN session: {key_stream_id} (Bob case)")
-        
+
         # Construct payload
         payload = source_uri.encode() + b'\x00'
         payload += dest_uri.encode() + b'\x00'
@@ -431,6 +435,11 @@ class QKDClient:
         """Execute the main client flow: open_connect, get_key, close."""
         key_material = None
         try:
+            ksid_env = os.getenv("KEY_STREAM_ID")
+            if ksid_env:
+                self.key_stream_id = uuid.UUID(ksid_env)
+                logging.info(f"[CLIENT] Reusing KSID: {self.key_stream_id}")
+
             connect_status = self.connect(server_ip, server_port)
             if connect_status != STATUS_SUCCESS:
                 logging.error(f"OPEN_CONNECT failed with status: {connect_status}")
